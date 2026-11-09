@@ -77,10 +77,6 @@ const PLATFORMS = {
     platform_1792598493339: {
         name: 'Repopive', handle: 'Repopive', color: '#8b5cf6', icon: '🌐',
         apiSupport: false, url: 'https://repovive.com/users/6950ecc1c8ed4329fd80462c', solved: 1, isCustom: true
-    },
-    cptracker: {
-        name: 'CP Tracker', handle: 'cptrackermit', color: '#06b6d4', icon: '🎯',
-        apiSupport: false, url: 'https://cptrackermit.vercel.app', solved: 0, fixed: true
     }
 };
 
@@ -104,13 +100,13 @@ const LS_DATA_VERSION = 'cp_tracker_data_version';
 const DEFAULT_PLATFORM_KEYS = [
     'codeforces', 'leetcode', 'atcoder', 'codechef', 'gfg',
     'cses', 'vjudge', 'spoj', 'euler', 'usaco', 'kattis',
-    'platform_1792915561929', 'platform_1792598493339', 'cptracker'
+    'platform_1792915561929', 'platform_1792598493339'
 ];
 
 function getDeletedPlatforms() {
     try {
         const raw = localStorage.getItem(LS_DELETED_PLATFORMS);
-        return raw ? JSON.parse(raw).filter(k => k !== 'cptracker') : [];
+        return raw ? JSON.parse(raw) : [];
     } catch (e) {
         return [];
     }
@@ -491,6 +487,19 @@ function loadFromStorage() {
         }
     }
 
+    // Ensure cptracker is never in platforms
+    delete PLATFORMS.cptracker;
+    try {
+        const customData = localStorage.getItem(LS_CUSTOM_PLATFORMS);
+        if (customData) {
+            const custom = JSON.parse(customData);
+            if (custom.cptracker) {
+                delete custom.cptracker;
+                localStorage.setItem(LS_CUSTOM_PLATFORMS, JSON.stringify(custom));
+            }
+        }
+    } catch (e) {}
+
     // Remove any platforms explicitly deleted by user
     const deletedPlatforms = getDeletedPlatforms();
     for (const delKey of deletedPlatforms) {
@@ -593,11 +602,14 @@ async function syncWithPortfolio(interactive = true) {
             if (data && data.cp) {
                 if (!data.cp.platforms) data.cp.platforms = {};
 
-                const deleted = getDeletedPlatforms().filter(k => k !== 'cptracker');
+                const deleted = getDeletedPlatforms();
                 // Prune any deleted platforms from Portfolio config
                 for (const delKey of deleted) {
                     delete data.cp.platforms[delKey];
                 }
+
+                // Explicitly remove cptracker from Portfolio platforms as requested
+                delete data.cp.platforms.cptracker;
 
                 // Push all current CP Tracker platforms and latest solved counts to Portfolio config
                 for (const [key, p] of Object.entries(PLATFORMS)) {
@@ -630,18 +642,7 @@ async function syncWithPortfolio(interactive = true) {
                     }
                 }
 
-                // Guarantee cptracker is always present and active
-                data.cp.platforms.cptracker = {
-                    name: 'CP Tracker',
-                    handle: 'cptrackermit',
-                    solved: 0,
-                    rating: 0,
-                    maxRating: 0,
-                    url: 'https://cptrackermit.vercel.app',
-                    fixed: true,
-                    showPlatform: true,
-                    showRating: false
-                };
+                delete data.cp.platforms.cptracker;
 
                 data.cp.lastSynced = new Date().toLocaleString();
 
@@ -704,20 +705,11 @@ async function syncStatsToServer() {
                 isCustom: !!p.isCustom
             };
         }
-        counts.cptracker = {
-            name: 'CP Tracker',
-            handle: 'cptrackermit',
-            solved: 0,
-            rating: 0,
-            maxRating: 0,
-            url: 'https://cptrackermit.vercel.app',
-            color: '#06b6d4',
-            icon: '🎯'
-        };
+        delete counts.cptracker;
 
         const payload = JSON.stringify({ 
             platforms: counts, 
-            deletedPlatforms: getDeletedPlatforms().filter(k => k !== 'cptracker'),
+            deletedPlatforms: getDeletedPlatforms(),
             lastSynced: new Date().toISOString() 
         });
         const endpoints = ['/api/stats', 'https://cptrackermit.vercel.app/api/stats'];
@@ -1699,7 +1691,7 @@ function renderPlatformCards() {
                 <div class="platform-btn-group" onclick="event.stopPropagation()">
                     <button class="btn-platform-action btn-add-sub-quick" data-add-platform="${key}" title="Add question for ${p.name}">+ Add Q</button>
                     <button class="btn-platform-action btn-edit-platform" data-edit-platform="${key}" title="Manage ${p.name}">⚙️</button>
-                    ${key !== 'cptracker' ? `<button class="btn-platform-action btn-delete-platform-card" data-delete-platform="${key}" title="Remove ${p.name}">🗑️</button>` : ''}
+                    <button class="btn-platform-action btn-delete-platform-card" data-delete-platform="${key}" title="Remove ${p.name}">🗑️</button>
                 </div>
             </div>
         `;
@@ -1773,7 +1765,7 @@ function openPlatformModal(key = null) {
         document.getElementById('platform-form-max-rating').value = p.maxRating || '';
         document.getElementById('platform-form-color').value = p.color || '#00d4aa';
         document.getElementById('platform-color-hex').textContent = p.color || '#00d4aa';
-        delBtn.style.display = (key === 'cptracker') ? 'none' : 'inline-block';
+        delBtn.style.display = 'inline-block';
     } else {
         editingPlatformKey = null;
         title.textContent = 'Add CP Platform';
@@ -1842,7 +1834,7 @@ function handlePlatformFormSubmit(e) {
 }
 
 function removePlatformWithConfirm(key) {
-    if (!key || !PLATFORMS[key] || key === 'cptracker') return;
+    if (!key || !PLATFORMS[key]) return;
     const p = PLATFORMS[key];
     const keyToDelete = key;
     if (confirm(`Are you sure you want to delete "${p.name}"? This will remove it from both CP Tracker and Portfolio.`)) {

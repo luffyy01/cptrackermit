@@ -66,18 +66,16 @@ module.exports = async (req, res) => {
 
                 const mergedPlatforms = { ...prevPlatforms, ...incomingPlatforms };
                 for (const [k, p] of Object.entries(mergedPlatforms)) {
-                    if (k === 'cptracker') {
-                        p.solved = 0;
-                        p.url = 'https://cptrackermit.vercel.app';
-                    } else if (typeof p.solved === 'number') {
+                    if (typeof p.solved === 'number') {
                         const floor = BASELINE_SOLVED[k] || 0;
                         p.solved = Math.max(p.solved, floor);
                     }
                 }
+                delete mergedPlatforms.cptracker;
 
-                // Honor deleted platforms (never delete cptracker)
+                // Honor deleted platforms
                 const deletedList = Array.isArray(body.deletedPlatforms) 
-                    ? body.deletedPlatforms.filter(k => k !== 'cptracker') 
+                    ? body.deletedPlatforms 
                     : [];
                 for (const delKey of deletedList) {
                     delete mergedPlatforms[delKey];
@@ -295,14 +293,6 @@ module.exports = async (req, res) => {
             color: '#10b981',
             icon: '🌐',
             isCustom: true
-        },
-        cptracker: {
-            name: 'CP Tracker',
-            handle: 'cptrackermit',
-            solved: 0,
-            rating: 0,
-            maxRating: 0,
-            url: 'https://cptrackermit.vercel.app'
         }
     };
 
@@ -325,14 +315,15 @@ module.exports = async (req, res) => {
         }
     }
 
-    // Prune any platforms explicitly deleted by client (never delete cptracker)
+    // Prune any platforms explicitly deleted by client
     if (activeCache && Array.isArray(activeCache.deletedPlatforms)) {
         for (const delKey of activeCache.deletedPlatforms) {
-            if (delKey !== 'cptracker') {
-                delete platforms[delKey];
-            }
+            delete platforms[delKey];
         }
     }
+
+    // Ensure cptracker is never in platforms
+    delete platforms.cptracker;
 
     // Try to auto-fetch live Codeforces data including private groups & rating
     try {
@@ -365,15 +356,12 @@ module.exports = async (req, res) => {
         console.error('CF live sync note in stats:', e);
     }
 
-    // Always keep cptracker platform solved at 0 as requested
-    if (platforms.cptracker) {
-        platforms.cptracker.solved = 0;
-    }
+    delete platforms.cptracker;
 
-    // Calculate total solved (excluding CP Tracker itself)
+    // Calculate total solved
     let totalSolved = 0;
     for (const p of Object.values(platforms)) {
-        if (p.name !== 'CP Tracker' && typeof p.solved === 'number') {
+        if (typeof p.solved === 'number') {
             totalSolved += p.solved;
         }
     }
