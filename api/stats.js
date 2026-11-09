@@ -383,6 +383,7 @@ module.exports = async (req, res) => {
         handle,
         totalSolved,
         platforms,
+        deletedPlatforms: (activeCache && Array.isArray(activeCache.deletedPlatforms)) ? activeCache.deletedPlatforms : [],
         source: 'cptrackermit.vercel.app',
         updatedAt: new Date().toISOString()
     });

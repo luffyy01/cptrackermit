@@ -225,6 +225,15 @@ header {
 .btn-add-sub-quick {
     color: var(--accent); border-color: var(--accent-glow);
 }
+.btn-delete-platform-card {
+    color: var(--text-muted);
+    border-color: rgba(255, 71, 87, 0.2);
+}
+.btn-delete-platform-card:hover {
+    color: #ff4757 !important;
+    border-color: rgba(255, 71, 87, 0.6) !important;
+    background: rgba(255, 71, 87, 0.12) !important;
+}
 
 /* ========== CONTROLS ========== */
 .controls {

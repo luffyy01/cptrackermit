@@ -1699,6 +1699,7 @@ function renderPlatformCards() {
                 <div class="platform-btn-group" onclick="event.stopPropagation()">
                     <button class="btn-platform-action btn-add-sub-quick" data-add-platform="${key}" title="Add question for ${p.name}">+ Add Q</button>
                     <button class="btn-platform-action btn-edit-platform" data-edit-platform="${key}" title="Manage ${p.name}">⚙️</button>
+                    ${key !== 'cptracker' ? `<button class="btn-platform-action btn-delete-platform-card" data-delete-platform="${key}" title="Remove ${p.name}">🗑️</button>` : ''}
                 </div>
             </div>
         `;
@@ -1717,6 +1718,14 @@ function renderPlatformCards() {
             editBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openPlatformModal(key);
+            });
+        }
+
+        const cardDelBtn = card.querySelector('.btn-delete-platform-card');
+        if (cardDelBtn) {
+            cardDelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removePlatformWithConfirm(key);
             });
         }
 
@@ -1764,7 +1773,7 @@ function openPlatformModal(key = null) {
         document.getElementById('platform-form-max-rating').value = p.maxRating || '';
         document.getElementById('platform-form-color').value = p.color || '#00d4aa';
         document.getElementById('platform-color-hex').textContent = p.color || '#00d4aa';
-        delBtn.style.display = DEFAULT_PLATFORM_KEYS.includes(key) ? 'none' : 'block';
+        delBtn.style.display = (key === 'cptracker') ? 'none' : 'inline-block';
     } else {
         editingPlatformKey = null;
         title.textContent = 'Add CP Platform';
@@ -1832,11 +1841,11 @@ function handlePlatformFormSubmit(e) {
     toast(`Platform "${name}" saved & synced with Portfolio!`, 'success');
 }
 
-function handleDeletePlatform() {
-    if (!editingPlatformKey || !PLATFORMS[editingPlatformKey]) return;
-    const p = PLATFORMS[editingPlatformKey];
-    const keyToDelete = editingPlatformKey;
-    if (confirm(`Are you sure you want to delete "${p.name}"?`)) {
+function removePlatformWithConfirm(key) {
+    if (!key || !PLATFORMS[key] || key === 'cptracker') return;
+    const p = PLATFORMS[key];
+    const keyToDelete = key;
+    if (confirm(`Are you sure you want to delete "${p.name}"? This will remove it from both CP Tracker and Portfolio.`)) {
         addDeletedPlatform(keyToDelete);
         delete PLATFORMS[keyToDelete];
 
@@ -1853,6 +1862,16 @@ function handleDeletePlatform() {
             }
         } catch (e) {}
 
+        // Clean up custom platforms
+        try {
+            const customRaw = localStorage.getItem(LS_CUSTOM_PLATFORMS);
+            if (customRaw) {
+                const custom = JSON.parse(customRaw);
+                delete custom[keyToDelete];
+                localStorage.setItem(LS_CUSTOM_PLATFORMS, JSON.stringify(custom));
+            }
+        } catch (e) {}
+
         saveCustomPlatforms();
         saveToStorage();
         renderStatsBar();
@@ -1861,8 +1880,14 @@ function handleDeletePlatform() {
         populateFormPlatform();
         closePlatformModal();
         syncStatsToServer();
-        toast(`Platform "${p.name}" deleted.`, 'info');
+        syncWithPortfolio(false);
+        toast(`Platform "${p.name}" removed from CP Tracker and Portfolio!`, 'info');
     }
+}
+
+function handleDeletePlatform() {
+    if (!editingPlatformKey || !PLATFORMS[editingPlatformKey]) return;
+    removePlatformWithConfirm(editingPlatformKey);
 }
 
 // ─── Filter Dropdown ────────────────────────────────────────
