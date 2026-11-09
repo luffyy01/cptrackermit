@@ -58,12 +58,18 @@
     <section class="quick-solve-section" id="quick-solve-section">
         <div class="quick-solve-card">
             <div class="quick-solve-header">
-                <div class="quick-solve-badge">
-                    <span class="quick-solve-pulse"></span>
-                    <span class="quick-solve-icon">⚡</span>
-                    <strong>One-Click Quick Solve</strong>
+                <div class="quick-solve-title-wrap">
+                    <div class="quick-solve-badge">
+                        <span class="quick-solve-pulse"></span>
+                        <span class="quick-solve-icon">⚡</span>
+                        <strong>One-Click Quick Solve</strong>
+                    </div>
+                    <p class="quick-solve-desc">Paste problem link to auto-detect name &amp; mark as solved instantly.</p>
                 </div>
-                <p class="quick-solve-desc">Paste any problem link (LeetCode, Codeforces, CodeChef, AtCoder, CSES, GFG) — name is auto-detected &amp; marked solved in 1 click!</p>
+                <div class="duplicate-toggle-group" id="duplicate-toggle-group" title="Choose whether to allow duplicate questions or skip them">
+                    <button type="button" class="dup-btn active" id="btn-dup-unique" title="If question was already solved, skip adding duplicate">✨ Only Unique</button>
+                    <button type="button" class="dup-btn" id="btn-dup-allow" title="Allow adding duplicate submissions for the same question">➕ Allow Duplicates</button>
+                </div>
             </div>
             <form class="quick-solve-form" id="quick-solve-form" onsubmit="return false;">
                 <div class="quick-solve-input-group">

@@ -83,6 +83,7 @@ let editingPlatformKey = null;
 // ─── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     loadFromStorage();
+    updateDuplicateToggleUI(getDuplicateMode());
     renderStatsBar();
     renderPlatformCards();
     populateFilterDropdown();
@@ -434,6 +435,71 @@ async function handleLinkAutofetch() {
 // ─── One-Click Quick Mark as Solved ─────────────────────────
 let newlyAddedSubId = null;
 
+// ─── Duplicate Control Mode ─────────────────────────────────
+const LS_DUP_MODE = 'cp_tracker_dup_mode';
+
+function getDuplicateMode() {
+    return localStorage.getItem(LS_DUP_MODE) || 'unique';
+}
+
+function setDuplicateMode(mode) {
+    localStorage.setItem(LS_DUP_MODE, mode);
+    updateDuplicateToggleUI(mode);
+    if (mode === 'unique') {
+        toast('✨ Mode set: Only unique questions will be added (duplicates skipped)', 'info');
+    } else {
+        toast('➕ Mode set: Duplicate questions will be allowed', 'info');
+    }
+}
+
+function updateDuplicateToggleUI(mode) {
+    const m = mode || getDuplicateMode();
+    const btnUnique = document.getElementById('btn-dup-unique');
+    const btnAllow = document.getElementById('btn-dup-allow');
+    if (btnUnique && btnAllow) {
+        if (m === 'allow') {
+            btnAllow.classList.add('active');
+            btnUnique.classList.remove('active');
+        } else {
+            btnUnique.classList.add('active');
+            btnAllow.classList.remove('active');
+        }
+    }
+}
+
+function findExistingSubmission(name, rawUrl, platform) {
+    if (!name && !rawUrl) return null;
+    const cleanUrl = rawUrl ? normalizeProblemUrl(rawUrl) : '';
+    const targetName = (name || '').toLowerCase().trim();
+
+    return submissions.find(s => {
+        // Direct URL match
+        if (cleanUrl && s.problemLink && normalizeProblemUrl(s.problemLink) === cleanUrl) {
+            return true;
+        }
+
+        // Exact problem name match
+        if (targetName && s.problemName) {
+            const sName = s.problemName.toLowerCase().trim();
+            if (sName === targetName) {
+                if (!platform || !s.platform || s.platform === platform) return true;
+            }
+
+            // Cleaned name match (strips leading contest/task indices like "1. ", "A. ", "CSES 1068: ")
+            const stripPrefix = (str) => str
+                .replace(/^[a-z0-9]+[\.\-\:]\s*/i, '')
+                .replace(/^cses\s*\d+[\:\.\-]\s*/i, '')
+                .trim();
+            const cleanTarget = stripPrefix(targetName);
+            const cleanS = stripPrefix(sName);
+            if (cleanTarget.length >= 3 && cleanTarget === cleanS) {
+                if (!platform || !s.platform || s.platform === platform) return true;
+            }
+        }
+        return false;
+    });
+}
+
 function slugToTitle(slug) {
     if (!slug) return '';
     return slug
@@ -575,6 +641,96 @@ function showQuickStatus(msg, type = 'info') {
     el.style.display = 'flex';
 }
 
+function addNewSubmissionEntry({ platform, problemName, problemLink, difficulty, tags, date }, isDuplicate = false) {
+    const newId = generateId();
+    const newSub = {
+        id: newId,
+        platform: platform,
+        problemName: problemName,
+        problemLink: problemLink,
+        submissionLink: '',
+        solutions: [],
+        difficulty: difficulty || 'Medium',
+        tags: tags || [],
+        language: 'C++',
+        date: date || new Date().toISOString().split('T')[0],
+        source: 'manual',
+        verdict: 'OK'
+    };
+
+    submissions.unshift(newSub);
+    newlyAddedSubId = newId;
+
+    const currentSubCount = submissions.filter(s => s.platform === platform).length;
+    PLATFORMS[platform].solved = Math.max((PLATFORMS[platform].solved || 0) + 1, currentSubCount);
+    if (!DEFAULT_PLATFORM_KEYS.includes(platform)) {
+        PLATFORMS[platform].isCustom = true;
+    }
+
+    savePlatformCounts();
+    saveCustomPlatforms();
+    saveToStorage();
+
+    currentPage = 1;
+    renderStatsBar();
+    renderPlatformCards();
+    applyFilters();
+    syncStatsToServer();
+
+    let totalSolved = 0;
+    for (const [k, p] of Object.entries(PLATFORMS)) {
+        if (k === 'cptracker') continue;
+        const subCount = submissions.filter(s => s.platform === k).length;
+        totalSolved += Math.max(subCount, p.solved || 0);
+    }
+
+    const platName = PLATFORMS[platform]?.name || platform;
+    const celebrationMsg = isDuplicate
+        ? `✓ Marked as solved! <strong>${escHtml(problemName)}</strong> added (+1 ${escHtml(platName)}, Duplicate Allowed · Total Solved: <strong>${totalSolved}</strong>)`
+        : `🎉 Marked as solved! <strong>${escHtml(problemName)}</strong> added to ${escHtml(platName)} (+1 · Total Solved: <strong>${totalSolved}</strong>)`;
+
+    showQuickStatus(celebrationMsg, 'success');
+    toast(`✓ Solved: "${problemName}" marked solved on ${platName}!`, 'success');
+
+    // Reset input and UI state
+    const input = document.getElementById('quick-solve-input');
+    if (input) {
+        input.value = '';
+        input.disabled = false;
+    }
+    const clearBtn = document.getElementById('quick-clear-btn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    const btn = document.getElementById('btn-quick-solve');
+    const spinner = document.getElementById('quick-solve-spinner');
+    if (btn) {
+        btn.disabled = false;
+        const btnText = btn.querySelector('.btn-text');
+        if (btnText) btnText.textContent = '⚡ Mark Solved';
+        if (spinner) spinner.style.display = 'none';
+    }
+
+    updateQuickPreview({
+        platform: platform,
+        problemName: problemName,
+        difficulty: difficulty,
+        tags: tags
+    });
+
+    setTimeout(() => {
+        const previewEl = document.getElementById('quick-solve-preview');
+        const statusEl = document.getElementById('quick-solve-status');
+        if (previewEl && input && input.value === '') previewEl.style.display = 'none';
+        if (statusEl && statusEl.classList.contains('success')) statusEl.style.display = 'none';
+    }, 7000);
+
+    setTimeout(() => {
+        newlyAddedSubId = null;
+        const trs = document.querySelectorAll('tr.row-new-highlight');
+        trs.forEach(tr => tr.classList.remove('row-new-highlight'));
+    }, 4000);
+}
+
 async function executeQuickSolve() {
     const input = document.getElementById('quick-solve-input');
     const btn = document.getElementById('btn-quick-solve');
@@ -596,24 +752,27 @@ async function executeQuickSolve() {
         if (rawText.includes('.') && !rawText.includes(' ')) {
             urls = ['https://' + rawText];
         } else {
-            showQuickStatus('⚠️ Please enter a valid URL (e.g. https://cses.fi/problemset/task/1068)', 'error');
+            showQuickStatus('⚠️ Please enter a valid URL (e.g. https://leetcode.com/problems/two-sum/)', 'error');
             input.focus();
             return;
         }
     }
+
+    const dupMode = getDuplicateMode(); // 'unique' or 'allow'
 
     // --- BULK MODE (multiple URLs pasted at once) ---
     if (urls.length > 1) {
         if (btn) {
             btn.disabled = true;
             const btnText = btn.querySelector('.btn-text');
-            if (btnText) btnText.textContent = `⚡ Adding ${urls.length} problems...`;
+            if (btnText) btnText.textContent = `⚡ Processing ${urls.length} problems...`;
             if (spinner) spinner.style.display = 'inline-block';
         }
         input.disabled = true;
-        showQuickStatus(`⚡ Bulk processing ${urls.length} problem links...`, 'info');
+        showQuickStatus(`⚡ Bulk processing ${urls.length} problem links (${dupMode === 'unique' ? 'Only Unique mode' : 'Allow Duplicates mode'})...`, 'info');
 
         let addedCount = 0;
+        let skippedDupCount = 0;
         const platformCounts = {};
 
         for (let i = 0; i < urls.length; i++) {
@@ -643,6 +802,13 @@ async function executeQuickSolve() {
                 name = slugToTitle(seg[seg.length - 1]) || `Problem ${i + 1}`;
             }
 
+            // Duplicate check
+            const existing = findExistingSubmission(name, u, plat);
+            if (existing && dupMode === 'unique') {
+                skippedDupCount++;
+                continue; // Do NOT add duplicate!
+            }
+
             if (!PLATFORMS[plat]) {
                 PLATFORMS[plat] = {
                     name: plat.charAt(0).toUpperCase() + plat.slice(1),
@@ -656,27 +822,23 @@ async function executeQuickSolve() {
                 };
             }
 
-            const cleanU = normalizeProblemUrl(u);
-            const exists = submissions.some(s => s.problemLink && normalizeProblemUrl(s.problemLink) === cleanU);
-            if (!exists) {
-                const newId = generateId();
-                submissions.unshift({
-                    id: newId,
-                    platform: plat,
-                    problemName: name,
-                    problemLink: u,
-                    submissionLink: '',
-                    solutions: [],
-                    difficulty: info.difficulty || 'Medium',
-                    tags: info.tags || [],
-                    language: 'C++',
-                    date: new Date().toISOString().split('T')[0],
-                    source: 'manual',
-                    verdict: 'OK'
-                });
-                addedCount++;
-                platformCounts[plat] = (platformCounts[plat] || 0) + 1;
-            }
+            const newId = generateId();
+            submissions.unshift({
+                id: newId,
+                platform: plat,
+                problemName: name,
+                problemLink: u,
+                submissionLink: '',
+                solutions: [],
+                difficulty: info.difficulty || 'Medium',
+                tags: info.tags || [],
+                language: 'C++',
+                date: new Date().toISOString().split('T')[0],
+                source: 'manual',
+                verdict: 'OK'
+            });
+            addedCount++;
+            platformCounts[plat] = (platformCounts[plat] || 0) + 1;
         }
 
         for (const [pKey, cnt] of Object.entries(platformCounts)) {
@@ -714,8 +876,12 @@ async function executeQuickSolve() {
             if (spinner) spinner.style.display = 'none';
         }
 
-        showQuickStatus(`🎉 Successfully marked <strong>${addedCount}</strong> problems solved! (Total Solved: <strong>${totalSolved}</strong>)`, 'success');
-        toast(`🎉 Added ${addedCount} solved problems to CP Tracker!`, 'success');
+        const msg = skippedDupCount > 0
+            ? `🎉 Successfully marked <strong>${addedCount}</strong> unique problems solved! (<strong>${skippedDupCount}</strong> duplicates skipped) · Total Solved: <strong>${totalSolved}</strong>`
+            : `🎉 Successfully marked <strong>${addedCount}</strong> problems solved! · Total Solved: <strong>${totalSolved}</strong>`;
+
+        showQuickStatus(msg, 'success');
+        toast(`Added ${addedCount} problems${skippedDupCount > 0 ? ` (${skippedDupCount} duplicates skipped)` : ''}!`, 'success');
         return;
     }
 
@@ -789,104 +955,54 @@ async function executeQuickSolve() {
         populateFormPlatform();
     }
 
-    // Check if duplicate
-    const cleanCurrentUrl = normalizeProblemUrl(url);
-    const existingIndex = submissions.findIndex(s => {
-        if (s.problemLink && normalizeProblemUrl(s.problemLink) === cleanCurrentUrl) return true;
-        if (s.problemName && detectedName && s.problemName.toLowerCase().trim() === detectedName.toLowerCase().trim() && s.platform === detectedPlatform) return true;
-        return false;
-    });
+    // CHECK DUPLICATE
+    const existing = findExistingSubmission(detectedName, url, detectedPlatform);
 
-    const isDuplicate = existingIndex >= 0;
+    if (existing && dupMode === 'unique') {
+        // UNIQUE MODE: DO NOT ADD!
+        if (btn) {
+            btn.disabled = false;
+            const btnText = btn.querySelector('.btn-text');
+            if (btnText) btnText.textContent = '⚡ Mark Solved';
+            if (spinner) spinner.style.display = 'none';
+        }
+        input.disabled = false;
 
-    // Create new submission entry
-    const newId = generateId();
-    const newSub = {
-        id: newId,
+        const platName = PLATFORMS[detectedPlatform]?.name || detectedPlatform;
+        const existDate = existing.date ? `on ${existing.date}` : '';
+
+        showQuickStatus(
+            `⚠️ <strong>Duplicate skipped:</strong> "<em>${escHtml(detectedName)}</em>" is already marked solved ${existDate} on ${escHtml(platName)}! (Only Unique mode is ON)
+             <button type="button" class="status-action-btn" id="btn-force-add-dup" title="Click to add anyway as duplicate">➕ Add Anyway</button>`,
+            'warning'
+        );
+
+        toast(`⚠️ "${detectedName}" already solved! Skipped duplicate.`, 'warning');
+
+        // Wire "Add Anyway" button in the warning message
+        const forceBtn = document.getElementById('btn-force-add-dup');
+        if (forceBtn) {
+            forceBtn.addEventListener('click', () => {
+                addNewSubmissionEntry({
+                    platform: detectedPlatform,
+                    problemName: detectedName,
+                    problemLink: url,
+                    difficulty: detectedDifficulty,
+                    tags: detectedTags
+                }, true); // force allow duplicate
+            });
+        }
+        return;
+    }
+
+    // If not duplicate or allow duplicates mode: ADD IT!
+    addNewSubmissionEntry({
         platform: detectedPlatform,
         problemName: detectedName,
         problemLink: url,
-        submissionLink: '',
-        solutions: [],
-        difficulty: detectedDifficulty || 'Medium',
-        tags: detectedTags,
-        language: 'C++',
-        date: new Date().toISOString().split('T')[0],
-        source: 'manual',
-        verdict: 'OK'
-    };
-
-    submissions.unshift(newSub);
-    newlyAddedSubId = newId;
-
-    // Auto-increment platform solved count
-    const currentSubCount = submissions.filter(s => s.platform === detectedPlatform).length;
-    PLATFORMS[detectedPlatform].solved = Math.max((PLATFORMS[detectedPlatform].solved || 0) + 1, currentSubCount);
-    if (!DEFAULT_PLATFORM_KEYS.includes(detectedPlatform)) {
-        PLATFORMS[detectedPlatform].isCustom = true;
-    }
-
-    // Save and re-render
-    savePlatformCounts();
-    saveCustomPlatforms();
-    saveToStorage();
-
-    // Reset pagination to first page so user sees new entry
-    currentPage = 1;
-    renderStatsBar();
-    renderPlatformCards();
-    applyFilters();
-    syncStatsToServer(); // Auto-pushes immediately to /api/stats for Portfolio!
-
-    // Calculate total solved
-    let totalSolved = 0;
-    for (const [k, p] of Object.entries(PLATFORMS)) {
-        if (k === 'cptracker') continue;
-        const subCount = submissions.filter(s => s.platform === k).length;
-        totalSolved += Math.max(subCount, p.solved || 0);
-    }
-
-    const platName = PLATFORMS[detectedPlatform]?.name || detectedPlatform;
-    const celebrationMsg = isDuplicate
-        ? `✓ Marked as solved! <strong>${escHtml(detectedName)}</strong> updated (+1 ${escHtml(platName)}, Total Solved: <strong>${totalSolved}</strong>)`
-        : `🎉 Marked as solved! <strong>${escHtml(detectedName)}</strong> added to ${escHtml(platName)} (+1, Total Solved: <strong>${totalSolved}</strong>)`;
-
-    showQuickStatus(celebrationMsg, 'success');
-    toast(`✓ Solved: "${detectedName}" marked solved on ${platName}! (+1)`, 'success');
-
-    // Reset input & controls
-    input.value = '';
-    input.disabled = false;
-    const clearBtn = document.getElementById('quick-clear-btn');
-    if (clearBtn) clearBtn.style.display = 'none';
-
-    if (btn) {
-        btn.disabled = false;
-        const btnText = btn.querySelector('.btn-text');
-        if (btnText) btnText.textContent = '⚡ Mark Solved';
-        if (spinner) spinner.style.display = 'none';
-    }
-
-    // Update preview with final resolved details
-    updateQuickPreview({
-        platform: detectedPlatform,
-        problemName: detectedName,
         difficulty: detectedDifficulty,
         tags: detectedTags
-    });
-
-    // Fade out preview & success status after 7 seconds
-    setTimeout(() => {
-        if (previewEl && input.value === '') previewEl.style.display = 'none';
-        if (statusEl && statusEl.classList.contains('success')) statusEl.style.display = 'none';
-    }, 7000);
-
-    // Remove row highlight after 4 seconds
-    setTimeout(() => {
-        newlyAddedSubId = null;
-        const trs = document.querySelectorAll('tr.row-new-highlight');
-        trs.forEach(tr => tr.classList.remove('row-new-highlight'));
-    }, 4000);
+    }, Boolean(existing));
 }
 
 // ─── Event Bindings ─────────────────────────────────────────
@@ -984,6 +1100,17 @@ function bindEvents() {
             }
         });
     }
+
+    // Duplicate Control Mode Toggles
+    const btnDupUnique = document.getElementById('btn-dup-unique');
+    const btnDupAllow = document.getElementById('btn-dup-allow');
+    if (btnDupUnique) {
+        btnDupUnique.addEventListener('click', () => setDuplicateMode('unique'));
+    }
+    if (btnDupAllow) {
+        btnDupAllow.addEventListener('click', () => setDuplicateMode('allow'));
+    }
+    updateDuplicateToggleUI(getDuplicateMode());
 
     // Platform Management & Portfolio Connection
     const btnAddPlat = document.getElementById('btn-add-platform');
@@ -1627,6 +1754,16 @@ function handleFormSubmit(e) {
             toast('Submission updated', 'success');
         }
     } else {
+        // Duplicate check in Only Unique mode
+        const dupMode = getDuplicateMode();
+        const existing = findExistingSubmission(data.problemName, data.problemLink, data.platform);
+        if (existing && dupMode === 'unique') {
+            const proceed = confirm(`⚠️ "${data.problemName}" is already marked solved in your tracker!\n\n"Only Unique" mode is active. Click OK if you want to add it as a duplicate anyway, or Cancel to skip.`);
+            if (!proceed) {
+                return;
+            }
+        }
+
         data.id = generateId();
         submissions.unshift(data);
 
