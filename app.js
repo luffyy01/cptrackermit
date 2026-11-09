@@ -6,6 +6,21 @@
    ============================================================ */
 
 // ─── Platform Configuration ─────────────────────────────────
+const BASELINE_SOLVED = {
+    codeforces: 1491,
+    leetcode: 84,
+    codechef: 31,
+    atcoder: 17,
+    cses: 22,
+    vjudge: 32,
+    gfg: 14,
+    usaco: 10,
+    euler: 3,
+    spoj: 1,
+    platform_1792915561929: 14,
+    platform_1792598493339: 1
+};
+
 const PLATFORMS = {
     codeforces: {
         name: 'Codeforces', handle: 'luffyy01', color: '#1890ff', icon: '⚡',
@@ -20,7 +35,7 @@ const PLATFORMS = {
     atcoder: {
         name: 'AtCoder', handle: 'luffyy01', color: '#2196f3', icon: '🏯',
         apiSupport: true, url: 'https://atcoder.jp/users/luffyy01',
-        rating: 53, maxRating: 820, solved: 14
+        rating: 53, maxRating: 820, solved: 17
     },
     codechef: {
         name: 'CodeChef', handle: 'luffyy01', color: '#5b4638', icon: '👨‍🍳',
@@ -29,11 +44,11 @@ const PLATFORMS = {
     },
     gfg: {
         name: 'GeeksforGeeks', handle: 'luffyy01', color: '#2f8d46', icon: '🟢',
-        apiSupport: false, url: 'https://www.geeksforgeeks.org/profile/luffyy01', solved: 3
+        apiSupport: false, url: 'https://www.geeksforgeeks.org/profile/luffyy01', solved: 14
     },
     cses: {
         name: 'CSES', handle: 'mit_001', color: '#607d8b', icon: '📘',
-        apiSupport: false, url: 'https://cses.fi/problemset/list/', solved: 35
+        apiSupport: false, url: 'https://cses.fi/user/mit_001', solved: 22
     },
     vjudge: {
         name: 'VJudge', handle: 'luffyy01', color: '#5cb85c', icon: '⚖️',
@@ -41,7 +56,7 @@ const PLATFORMS = {
     },
     spoj: {
         name: 'SPOJ', handle: 'luffyy01', color: '#0066aa', icon: '🔵',
-        apiSupport: false, url: 'https://www.spoj.com/myaccount/', solved: 2
+        apiSupport: false, url: 'https://www.spoj.com/myaccount/', solved: 1
     },
     euler: {
         name: 'Project Euler', handle: 'luffyy01', color: '#666', icon: '🔢',
@@ -49,11 +64,23 @@ const PLATFORMS = {
     },
     usaco: {
         name: 'USACO Guide', handle: 'luffyy01', color: '#0066cc', icon: '🐄',
-        apiSupport: false, url: 'https://usaco.guide/problems?status=Solved', solved: 6
+        apiSupport: false, url: 'https://usaco.guide/problems?status=Solved', solved: 10
     },
     kattis: {
         name: 'Kattis', handle: 'mit-jain', color: '#333', icon: '🐱',
         apiSupport: false, url: 'https://open.kattis.com/users/mit-jain', solved: 0
+    },
+    platform_1792915561929: {
+        name: 'Clist-atc-qs', handle: 'Clist', color: '#10b981', icon: '🌐',
+        apiSupport: false, url: 'https://clist.by/problems/?resource=93&status=allsolved', solved: 14, isCustom: true
+    },
+    platform_1792598493339: {
+        name: 'Repopive', handle: 'Repopive', color: '#8b5cf6', icon: '🌐',
+        apiSupport: false, url: 'https://repovive.com/users/6950ecc1c8ed4329fd80462c', solved: 1, isCustom: true
+    },
+    cptracker: {
+        name: 'CP Tracker', handle: 'cptrackermit', color: '#06b6d4', icon: '🎯',
+        apiSupport: false, url: 'https://cptrackermit.vercel.app', solved: 0, fixed: true
     }
 };
 
@@ -76,13 +103,14 @@ const LS_DATA_VERSION = 'cp_tracker_data_version';
 
 const DEFAULT_PLATFORM_KEYS = [
     'codeforces', 'leetcode', 'atcoder', 'codechef', 'gfg',
-    'cses', 'vjudge', 'spoj', 'euler', 'usaco', 'kattis'
+    'cses', 'vjudge', 'spoj', 'euler', 'usaco', 'kattis',
+    'platform_1792915561929', 'platform_1792598493339', 'cptracker'
 ];
 
 function getDeletedPlatforms() {
     try {
         const raw = localStorage.getItem(LS_DELETED_PLATFORMS);
-        return raw ? JSON.parse(raw) : [];
+        return raw ? JSON.parse(raw).filter(k => k !== 'cptracker') : [];
     } catch (e) {
         return [];
     }
@@ -565,7 +593,7 @@ async function syncWithPortfolio(interactive = true) {
             if (data && data.cp) {
                 if (!data.cp.platforms) data.cp.platforms = {};
 
-                const deleted = getDeletedPlatforms();
+                const deleted = getDeletedPlatforms().filter(k => k !== 'cptracker');
                 // Prune any deleted platforms from Portfolio config
                 for (const delKey of deleted) {
                     delete data.cp.platforms[delKey];
@@ -577,7 +605,8 @@ async function syncWithPortfolio(interactive = true) {
                     if (deleted.includes(key)) continue;
 
                     const subCount = submissions.filter(s => s.platform === key).length;
-                    const solvedCount = Math.max(subCount, p.solved || 0);
+                    const floor = BASELINE_SOLVED[key] || 0;
+                    const solvedCount = Math.max(subCount, p.solved || 0, floor);
 
                     if (data.cp.platforms[key]) {
                         data.cp.platforms[key].solved = solvedCount;
@@ -601,10 +630,18 @@ async function syncWithPortfolio(interactive = true) {
                     }
                 }
 
-                if (data.cp.platforms.cptracker) {
-                    data.cp.platforms.cptracker.solved = 0;
-                    data.cp.platforms.cptracker.url = 'https://cptrackermit.vercel.app';
-                }
+                // Guarantee cptracker is always present and active
+                data.cp.platforms.cptracker = {
+                    name: 'CP Tracker',
+                    handle: 'cptrackermit',
+                    solved: 0,
+                    rating: 0,
+                    maxRating: 0,
+                    url: 'https://cptrackermit.vercel.app',
+                    fixed: true,
+                    showPlatform: true,
+                    showRating: false
+                };
 
                 data.cp.lastSynced = new Date().toLocaleString();
 
@@ -653,7 +690,8 @@ async function syncStatsToServer() {
         const counts = {};
         for (const [key, p] of Object.entries(PLATFORMS)) {
             const subCount = submissions.filter(s => s.platform === key).length;
-            const count = Math.max(subCount, p.solved || 0);
+            const floor = BASELINE_SOLVED[key] || 0;
+            const count = Math.max(subCount, p.solved || 0, floor);
             counts[key] = {
                 name: p.name,
                 solved: key === 'cptracker' ? 0 : count,
@@ -666,13 +704,20 @@ async function syncStatsToServer() {
                 isCustom: !!p.isCustom
             };
         }
-        if (counts.cptracker) {
-            counts.cptracker.solved = 0;
-        }
+        counts.cptracker = {
+            name: 'CP Tracker',
+            handle: 'cptrackermit',
+            solved: 0,
+            rating: 0,
+            maxRating: 0,
+            url: 'https://cptrackermit.vercel.app',
+            color: '#06b6d4',
+            icon: '🎯'
+        };
 
         const payload = JSON.stringify({ 
             platforms: counts, 
-            deletedPlatforms: getDeletedPlatforms(),
+            deletedPlatforms: getDeletedPlatforms().filter(k => k !== 'cptracker'),
             lastSynced: new Date().toISOString() 
         });
         const endpoints = ['/api/stats', 'https://cptrackermit.vercel.app/api/stats'];

@@ -8,6 +8,21 @@ const path = require('path');
 
 const CACHE_FILE = path.join('/tmp', 'cptracker_stats_cache.json');
 
+const BASELINE_SOLVED = {
+    codeforces: 1491,
+    leetcode: 84,
+    codechef: 31,
+    atcoder: 17,
+    cses: 22,
+    vjudge: 32,
+    gfg: 14,
+    usaco: 10,
+    euler: 3,
+    spoj: 1,
+    platform_1792915561929: 14,
+    platform_1792598493339: 1
+};
+
 function readDiskCache() {
     try {
         if (fs.existsSync(CACHE_FILE)) {
@@ -50,12 +65,20 @@ module.exports = async (req, res) => {
                 const incomingPlatforms = body.platforms || {};
 
                 const mergedPlatforms = { ...prevPlatforms, ...incomingPlatforms };
-                if (mergedPlatforms.cptracker) {
-                    mergedPlatforms.cptracker.solved = 0;
+                for (const [k, p] of Object.entries(mergedPlatforms)) {
+                    if (k === 'cptracker') {
+                        p.solved = 0;
+                        p.url = 'https://cptrackermit.vercel.app';
+                    } else if (typeof p.solved === 'number') {
+                        const floor = BASELINE_SOLVED[k] || 0;
+                        p.solved = Math.max(p.solved, floor);
+                    }
                 }
 
-                // Honor deleted platforms
-                const deletedList = Array.isArray(body.deletedPlatforms) ? body.deletedPlatforms : [];
+                // Honor deleted platforms (never delete cptracker)
+                const deletedList = Array.isArray(body.deletedPlatforms) 
+                    ? body.deletedPlatforms.filter(k => k !== 'cptracker') 
+                    : [];
                 for (const delKey of deletedList) {
                     delete mergedPlatforms[delKey];
                 }
@@ -86,7 +109,9 @@ module.exports = async (req, res) => {
             solved: 1491,
             rating: 1478,
             maxRating: 1478,
-            url: `https://codeforces.com/profile/${handle}`
+            url: `https://codeforces.com/profile/${handle}`,
+            color: '#1890ff',
+            icon: '⚡'
         },
         leetcode: {
             name: 'LeetCode',
@@ -94,31 +119,40 @@ module.exports = async (req, res) => {
             solved: 84,
             rating: 0,
             maxRating: 1720,
-            url: `https://leetcode.com/u/${handle}/`
+            url: `https://leetcode.com/u/${handle}/`,
+            color: '#ffa116',
+            icon: '🔥'
         },
         codechef: {
             name: 'CodeChef',
             handle: handle,
             solved: 31,
             rating: 1120,
-            maxRating: 1650,
-            url: `https://www.codechef.com/users/${handle}`
+            maxRating: 1346,
+            url: `https://www.codechef.com/users/${handle}`,
+            color: '#5b4638',
+            icon: '👨‍🍳'
         },
         atcoder: {
             name: 'AtCoder',
             handle: handle,
-            solved: 14,
+            solved: 17,
             rating: 53,
             maxRating: 820,
-            url: `https://atcoder.jp/users/${handle}`
+            url: `https://atcoder.jp/users/${handle}`,
+            color: '#2196f3',
+            icon: '🏯'
         },
         cses: {
             name: 'CSES',
             handle: 'mit_001',
-            solved: 35,
+            solved: 22,
             rating: 0,
             maxRating: 0,
-            url: 'https://cses.fi/problemset/list/'
+            url: 'https://cses.fi/user/mit_001',
+            color: '#607d8b',
+            icon: '📘',
+            isCustom: true
         },
         vjudge: {
             name: 'Vjudge',
@@ -126,23 +160,32 @@ module.exports = async (req, res) => {
             solved: 32,
             rating: 0,
             maxRating: 0,
-            url: `https://vjudge.net/user/${handle}`
+            url: `https://vjudge.net/user/${handle}`,
+            color: '#5cb85c',
+            icon: '⚖️',
+            isCustom: true
         },
         gfg: {
             name: 'GeeksforGeeks',
             handle: handle,
-            solved: 3,
+            solved: 14,
             rating: 0,
             maxRating: 0,
-            url: `https://www.geeksforgeeks.org/profile/${handle}`
+            url: `https://www.geeksforgeeks.org/profile/${handle}`,
+            color: '#2f8d46',
+            icon: '🟢',
+            isCustom: true
         },
         usaco: {
             name: 'USACO Guide',
             handle: handle,
-            solved: 6,
+            solved: 10,
             rating: 0,
             maxRating: 0,
-            url: 'https://usaco.guide/problems?status=Solved'
+            url: 'https://usaco.guide/problems?status=Solved',
+            color: '#0066cc',
+            icon: '🐄',
+            isCustom: true
         },
         euler: {
             name: 'Project Euler',
@@ -150,15 +193,108 @@ module.exports = async (req, res) => {
             solved: 3,
             rating: 0,
             maxRating: 0,
-            url: 'https://projecteuler.net/'
+            url: 'https://projecteuler.net/',
+            color: '#666666',
+            icon: '🔢',
+            isCustom: true
         },
         spoj: {
             name: 'SPOJ',
             handle: handle,
-            solved: 2,
+            solved: 1,
             rating: 0,
             maxRating: 0,
-            url: 'https://www.spoj.com/myaccount/'
+            url: 'https://www.spoj.com/myaccount/',
+            color: '#0066aa',
+            icon: '🔵',
+            isCustom: true
+        },
+        kattis: {
+            name: 'Kattis',
+            handle: 'mit-jain',
+            solved: 0,
+            rating: 1,
+            maxRating: 0,
+            url: 'https://open.kattis.com/users/mit-jain',
+            color: '#333333',
+            icon: '🐱'
+        },
+        newton: {
+            name: 'Newton School',
+            handle: handle,
+            solved: 0,
+            rating: 0,
+            maxRating: 0,
+            url: `https://my.newtonschool.co/user/${handle}`,
+            color: '#00d4aa',
+            icon: '🌐',
+            isCustom: true
+        },
+        qoj: {
+            name: 'QOJ',
+            handle: handle,
+            solved: 0,
+            rating: 0,
+            maxRating: 0,
+            url: `https://qoj.ac/user/profile/${handle}`,
+            color: '#00d4aa',
+            icon: '🌐',
+            isCustom: true
+        },
+        cphof: {
+            name: 'CPHOF',
+            handle: 'mitjain70',
+            solved: 0,
+            rating: 0,
+            maxRating: 0,
+            url: 'https://cphof.org/contests',
+            color: '#00d4aa',
+            icon: '🌐',
+            isCustom: true
+        },
+        platform_1792598493339: {
+            name: 'Repopive',
+            handle: 'Repopive',
+            solved: 1,
+            rating: 0,
+            maxRating: 0,
+            url: 'https://repovive.com/users/6950ecc1c8ed4329fd80462c',
+            color: '#8b5cf6',
+            icon: '🌐',
+            isCustom: true
+        },
+        platform_hackerrank_1794230485918: {
+            name: 'Hackerrank',
+            handle: 'mitjain70',
+            solved: 0,
+            rating: 0,
+            maxRating: 0,
+            url: 'https://www.hackerrank.com/profile/mitjain70',
+            color: '#00d4aa',
+            icon: '🌐',
+            isCustom: true
+        },
+        platform_uoj_1794231317534: {
+            name: 'UOJ',
+            handle: handle,
+            solved: 0,
+            rating: 0,
+            maxRating: 0,
+            url: `https://uoj.ac/user/profile/${handle}`,
+            color: '#00d4aa',
+            icon: '🌐',
+            isCustom: true
+        },
+        platform_1792915561929: {
+            name: 'Clist-atc-qs',
+            handle: 'Clist',
+            solved: 14,
+            rating: 0,
+            maxRating: 0,
+            url: 'https://clist.by/problems/?resource=93&status=allsolved',
+            color: '#10b981',
+            icon: '🌐',
+            isCustom: true
         },
         cptracker: {
             name: 'CP Tracker',
@@ -170,23 +306,31 @@ module.exports = async (req, res) => {
         }
     };
 
-    // If client posted custom cached data, merge it
+    // If client posted custom cached data, merge it safely without dropping counts
     const activeCache = readDiskCache() || cachedData;
     if (activeCache && activeCache.platforms) {
         for (const [k, v] of Object.entries(activeCache.platforms)) {
             if (k === 'cptracker') continue;
+            const floor = BASELINE_SOLVED[k] || 0;
+            const safeSolved = Math.max(typeof v.solved === 'number' ? v.solved : 0, floor);
             if (platforms[k]) {
-                platforms[k] = { ...platforms[k], ...v };
+                platforms[k] = { 
+                    ...platforms[k], 
+                    ...v,
+                    solved: safeSolved
+                };
             } else {
-                platforms[k] = v;
+                platforms[k] = { ...v, solved: safeSolved };
             }
         }
     }
 
-    // Prune any platforms explicitly deleted by client
+    // Prune any platforms explicitly deleted by client (never delete cptracker)
     if (activeCache && Array.isArray(activeCache.deletedPlatforms)) {
         for (const delKey of activeCache.deletedPlatforms) {
-            delete platforms[delKey];
+            if (delKey !== 'cptracker') {
+                delete platforms[delKey];
+            }
         }
     }
 
