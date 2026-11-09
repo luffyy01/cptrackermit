@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CP Tracker | Mit Jain</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="noise"></div>
+    <div class="bg-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-left">
+            <h1 class="logo">CP<span class="accent">Tracker</span></h1>
+            <span class="handle-badge">@luffyy01</span>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-outline" id="btn-import" title="Import JSON">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Import
+            </button>
+            <input type="file" id="import-file" accept=".json" style="display:none">
+            <button class="btn btn-outline" id="btn-export" title="Export to JSON">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+            </button>
+            <button class="btn btn-primary" id="btn-sync">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Sync All
+            </button>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <section class="stats-bar" id="stats-bar">
+        <!-- Dynamically filled -->
+    </section>
+
+    <!-- Platform Cards -->
+    <section class="platforms-grid" id="platforms-grid">
+        <!-- Dynamically filled -->
+    </section>
+
+    <!-- Controls -->
+    <section class="controls">
+        <div class="search-box">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="search-input" placeholder="Search problems by name, tags, platform...">
+        </div>
+        <div class="filter-group">
+            <select id="filter-platform">
+                <option value="all">All Platforms</option>
+            </select>
+            <select id="filter-source">
+                <option value="all">All Sources</option>
+                <option value="auto">Auto-fetched</option>
+                <option value="manual">Manual</option>
+            </select>
+            <select id="filter-sort">
+                <option value="date-desc">Newest First</option>
+                <option value="date-asc">Oldest First</option>
+                <option value="name-asc">Name A→Z</option>
+                <option value="name-desc">Name Z→A</option>
+                <option value="difficulty-desc">Hardest First</option>
+                <option value="difficulty-asc">Easiest First</option>
+            </select>
+        </div>
+        <button class="btn btn-accent" id="btn-add">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Submission
+        </button>
+    </section>
+
+    <!-- Submissions Table -->
+    <section class="table-container">
+        <div class="table-info">
+            <span id="result-count">0 submissions</span>
+            <span id="last-synced">Never synced</span>
+        </div>
+        <div class="table-wrapper">
+            <table id="submissions-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Platform</th>
+                        <th>Problem</th>
+                        <th>Solutions / Ans</th>
+                        <th>Difficulty</th>
+                        <th>Tags</th>
+                        <th>Language</th>
+                        <th>Date</th>
+                        <th>Source</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="submissions-body">
+                    <!-- Dynamically filled -->
+                </tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="empty-state" style="display:none;">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            <h3>No submissions yet</h3>
+            <p>Click "Sync All" to fetch from platforms, or "Add Submission" to add manually.</p>
+        </div>
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
+    </section>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Add Submission</h2>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <form id="submission-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-platform">Platform *</label>
+                        <select id="form-platform" required>
+                            <!-- Dynamically filled -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-language">Language</label>
+                        <input type="text" id="form-language" placeholder="e.g. C++, Python">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="form-name">Problem Name *</label>
+                    <input type="text" id="form-name" placeholder="e.g. Two Sum" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-link">Question / Problem Link *</label>
+                        <input type="url" id="form-link" placeholder="https://leetcode.com/problems/..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-sub-link">Submission Link <span class="hint">(optional)</span></label>
+                        <input type="url" id="form-sub-link" placeholder="https://leetcode.com/submissions/detail/...">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-difficulty">Difficulty / Rating</label>
+                        <input type="text" id="form-difficulty" placeholder="e.g. 1400, Medium">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-date">Date Solved</label>
+                        <input type="date" id="form-date">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="form-tags">Tags <span class="hint">(comma separated)</span></label>
+                    <input type="text" id="form-tags" placeholder="e.g. dp, graphs, binary search">
+                </div>
+
+                <!-- Multiple Solutions / Answers Section -->
+                <div class="form-group" style="background:var(--bg-input); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <label style="margin:0; font-size:0.85rem; font-weight:700;">Submissions & Solutions <span class="hint">(Multiple approaches)</span></label>
+                        <button type="button" class="btn btn-sm btn-accent" id="btn-add-solution" style="padding:4px 10px; font-size:0.75rem;">+ Add Approach / Answer</button>
+                    </div>
+                    <div id="solutions-container" style="display:flex; flex-direction:column; gap:10px;"></div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" id="btn-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btn-save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Solutions Viewer Modal -->
+    <div class="modal-overlay" id="solutions-modal-overlay">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <div>
+                    <h2 id="solutions-modal-title">Submissions & Solutions</h2>
+                    <span id="solutions-modal-subtitle" style="font-size:0.8rem; color:var(--text-sub);"></span>
+                </div>
+                <button class="modal-close" id="solutions-modal-close">&times;</button>
+            </div>
+            <div id="solutions-modal-body" style="display:flex; flex-direction:column; gap:14px; max-height:60vh; overflow-y:auto; padding-right:4px;"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" style="display:none;">
+        <div class="spinner"></div>
+        <p id="loading-text">Syncing submissions...</p>
+    </div>
+
+    <footer>
+        <p>CP Tracker &bull; <a href="https://mitjain.vercel.app" target="_blank">Mit Jain</a> &bull; Data auto-fetched from platform APIs + manual entries</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
