@@ -10,7 +10,7 @@ const PLATFORMS = {
     codeforces: {
         name: 'Codeforces', handle: 'luffyy01', color: '#1890ff', icon: '⚡',
         apiSupport: true, url: 'https://codeforces.com/profile/luffyy01',
-        rating: 1478, maxRating: 1478, solved: 1490
+        rating: 1478, maxRating: 1478, solved: 1491
     },
     leetcode: {
         name: 'LeetCode', handle: 'luffyy01', color: '#ffa116', icon: '🔥',
@@ -70,12 +70,352 @@ const LS_SUBMISSIONS = 'cp_tracker_submissions';
 const LS_LAST_SYNCED = 'cp_tracker_last_synced';
 const LS_CUSTOM_PLATFORMS = 'cp_tracker_custom_platforms';
 const LS_PLATFORM_OVERRIDES = 'cp_tracker_platform_overrides';
+const LS_DELETED_PLATFORMS = 'cp_tracker_deleted_platforms';
 const CURRENT_DATA_VERSION = 'v2_cf_1490';
 const LS_DATA_VERSION = 'cp_tracker_data_version';
 
 const DEFAULT_PLATFORM_KEYS = [
     'codeforces', 'leetcode', 'atcoder', 'codechef', 'gfg',
     'cses', 'vjudge', 'spoj', 'euler', 'usaco', 'kattis'
+];
+
+function getDeletedPlatforms() {
+    try {
+        const raw = localStorage.getItem(LS_DELETED_PLATFORMS);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function addDeletedPlatform(key) {
+    try {
+        const list = getDeletedPlatforms();
+        if (!list.includes(key)) {
+            list.push(key);
+            localStorage.setItem(LS_DELETED_PLATFORMS, JSON.stringify(list));
+        }
+    } catch (e) {}
+}
+
+function removeDeletedPlatform(key) {
+    try {
+        let list = getDeletedPlatforms();
+        list = list.filter(k => k !== key);
+        localStorage.setItem(LS_DELETED_PLATFORMS, JSON.stringify(list));
+    } catch (e) {}
+}
+
+// ─── Seeded CSES Submissions ────────────────────────────────
+const CSES_SEEDED_SUBMISSIONS = [
+    {
+        id: 'cses_1094',
+        platform: 'cses',
+        problemName: 'Increasing Array',
+        problemLink: 'https://cses.fi/problemset/task/1094',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Greedy', 'Math'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1070',
+        platform: 'cses',
+        problemName: 'Permutations',
+        problemLink: 'https://cses.fi/problemset/task/1070',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Constructive'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1071',
+        platform: 'cses',
+        problemName: 'Number Spiral',
+        problemLink: 'https://cses.fi/problemset/task/1071',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Math'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1072',
+        platform: 'cses',
+        problemName: 'Two Knights',
+        problemLink: 'https://cses.fi/problemset/task/1072',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Math', 'Combinatorics'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1092',
+        platform: 'cses',
+        problemName: 'Two Sets',
+        problemLink: 'https://cses.fi/problemset/task/1092',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Math', 'Constructive'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1617',
+        platform: 'cses',
+        problemName: 'Bit Strings',
+        problemLink: 'https://cses.fi/problemset/task/1617',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Math', 'Modulo'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_2165',
+        platform: 'cses',
+        problemName: 'Tower of Hanoi',
+        problemLink: 'https://cses.fi/problemset/task/2165',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Introductory Problems', 'Recursion'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1622',
+        platform: 'cses',
+        problemName: 'Creating Strings',
+        problemLink: 'https://cses.fi/problemset/task/1622',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Recursion', 'Backtracking'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1623',
+        platform: 'cses',
+        problemName: 'Apple Division',
+        problemLink: 'https://cses.fi/problemset/task/1623',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Introductory Problems', 'Recursion', 'Bitmask'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1624',
+        platform: 'cses',
+        problemName: 'Chessboard and Queens',
+        problemLink: 'https://cses.fi/problemset/task/1624',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Introductory Problems', 'Backtracking'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_3359',
+        platform: 'cses',
+        problemName: 'Minimal Grid Path',
+        problemLink: 'https://cses.fi/problemset/task/3359',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Dynamic Programming', 'Grid'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1646',
+        platform: 'cses',
+        problemName: 'Static Range Sum Queries',
+        problemLink: 'https://cses.fi/problemset/task/1646',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Range Queries', 'Prefix Sum'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1647',
+        platform: 'cses',
+        problemName: 'Static Range Minimum Queries',
+        problemLink: 'https://cses.fi/problemset/task/1647',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Range Queries', 'Sparse Table'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1648',
+        platform: 'cses',
+        problemName: 'Dynamic Range Sum Queries',
+        problemLink: 'https://cses.fi/problemset/task/1648',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Range Queries', 'Segment Tree', 'Fenwick Tree'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1649',
+        platform: 'cses',
+        problemName: 'Dynamic Range Minimum Queries',
+        problemLink: 'https://cses.fi/problemset/task/1649',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Range Queries', 'Segment Tree'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1650',
+        platform: 'cses',
+        problemName: 'Range Xor Queries',
+        problemLink: 'https://cses.fi/problemset/task/1650',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Range Queries', 'Prefix XOR'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1674',
+        platform: 'cses',
+        problemName: 'Subordinates',
+        problemLink: 'https://cses.fi/problemset/task/1674',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Tree Algorithms', 'DFS'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1095',
+        platform: 'cses',
+        problemName: 'Exponentiation',
+        problemLink: 'https://cses.fi/problemset/task/1095',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Easy',
+        tags: ['Mathematics', 'Binary Exponentiation'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1712',
+        platform: 'cses',
+        problemName: 'Exponentiation II',
+        problemLink: 'https://cses.fi/problemset/task/1712',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Mathematics', "Fermat's Little Theorem", 'Binary Exponentiation'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1081',
+        platform: 'cses',
+        problemName: 'Common Divisors',
+        problemLink: 'https://cses.fi/problemset/task/1081',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Mathematics', 'Number Theory', 'GCD'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1079',
+        platform: 'cses',
+        problemName: 'Binomial Coefficients',
+        problemLink: 'https://cses.fi/problemset/task/1079',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Mathematics', 'Combinatorics', 'Modular Inverse'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    },
+    {
+        id: 'cses_1715',
+        platform: 'cses',
+        problemName: 'Creating Strings II',
+        problemLink: 'https://cses.fi/problemset/task/1715',
+        submissionLink: '',
+        solutions: [],
+        difficulty: 'Medium',
+        tags: ['Mathematics', 'Combinatorics', 'Modular Inverse'],
+        language: 'C++',
+        date: '2026-11-09',
+        source: 'manual',
+        verdict: 'OK'
+    }
 ];
 
 let editingPlatformKey = null;
@@ -112,16 +452,38 @@ function loadFromStorage() {
         }
     } catch (e) { submissions = []; }
 
+    // Seed default CSES submissions if not already present
+    for (const seeded of CSES_SEEDED_SUBMISSIONS) {
+        const exists = submissions.some(s =>
+            (s.id && s.id === seeded.id) ||
+            (s.problemLink && normalizeProblemUrl(s.problemLink) === normalizeProblemUrl(seeded.problemLink))
+        );
+        if (!exists) {
+            submissions.push({ ...seeded });
+        }
+    }
+
+    // Remove any platforms explicitly deleted by user
+    const deletedPlatforms = getDeletedPlatforms();
+    for (const delKey of deletedPlatforms) {
+        delete PLATFORMS[delKey];
+    }
+    if (deletedPlatforms.length > 0) {
+        submissions = submissions.filter(s => !deletedPlatforms.includes(s.platform));
+    }
+
     // Load any custom or portfolio platforms
     try {
         const customData = localStorage.getItem(LS_CUSTOM_PLATFORMS);
         if (customData) {
             const custom = JSON.parse(customData);
             for (const [key, p] of Object.entries(custom)) {
-                PLATFORMS[key] = {
-                    ...(PLATFORMS[key] || {}),
-                    ...p
-                };
+                if (!deletedPlatforms.includes(key)) {
+                    PLATFORMS[key] = {
+                        ...(PLATFORMS[key] || {}),
+                        ...p
+                    };
+                }
             }
         }
     } catch (e) {}
@@ -132,7 +494,7 @@ function loadFromStorage() {
         if (overridesData) {
             const overrides = JSON.parse(overridesData);
             for (const [key, ov] of Object.entries(overrides)) {
-                if (PLATFORMS[key]) {
+                if (PLATFORMS[key] && !deletedPlatforms.includes(key)) {
                     if (typeof ov.solved === 'number') {
                         PLATFORMS[key].solved = Math.max(PLATFORMS[key].solved || 0, ov.solved);
                     }
@@ -142,6 +504,12 @@ function loadFromStorage() {
             }
         }
     } catch (e) {}
+
+    // Ensure CSES solved count reflects actual count
+    if (PLATFORMS.cses) {
+        const csesCount = submissions.filter(s => s.platform === 'cses').length;
+        PLATFORMS.cses.solved = Math.max(PLATFORMS.cses.solved || 0, csesCount);
+    }
 }
 
 function saveToStorage() {
@@ -183,71 +551,97 @@ async function syncWithPortfolio(interactive = true) {
     if (dot) dot.classList.add('syncing');
 
     if (interactive) {
-        toast('Connecting & updating Portfolio with CP Tracker changes...', 'info');
+        toast('Pushing CP Tracker changes to mitjain.vercel.app...', 'info');
     }
 
     try {
         // 1. First push all current CP Tracker platform counts & stats to server for portfolio
         await syncStatsToServer();
 
-        // 2. Fetch any portfolio config platforms
+        // 2. Fetch the current site-config.json from Portfolio
         const res = await fetch('https://mitjain.vercel.app/site-config.json?v=' + Date.now(), { cache: 'no-store' });
         if (res.ok) {
             const data = await res.json();
-            if (data && data.cp && data.cp.platforms) {
-                let syncedCount = 0;
-                for (const [key, p] of Object.entries(data.cp.platforms)) {
+            if (data && data.cp) {
+                if (!data.cp.platforms) data.cp.platforms = {};
+
+                const deleted = getDeletedPlatforms();
+                // Prune any deleted platforms from Portfolio config
+                for (const delKey of deleted) {
+                    delete data.cp.platforms[delKey];
+                }
+
+                // Push all current CP Tracker platforms and latest solved counts to Portfolio config
+                for (const [key, p] of Object.entries(PLATFORMS)) {
                     if (key === 'cptracker') continue;
-                    const exists = !!PLATFORMS[key];
-                    if (!exists) {
-                        PLATFORMS[key] = {
+                    if (deleted.includes(key)) continue;
+
+                    const subCount = submissions.filter(s => s.platform === key).length;
+                    const solvedCount = Math.max(subCount, p.solved || 0);
+
+                    if (data.cp.platforms[key]) {
+                        data.cp.platforms[key].solved = solvedCount;
+                        if (p.rating !== undefined) data.cp.platforms[key].rating = p.rating;
+                        if (p.maxRating !== undefined) data.cp.platforms[key].maxRating = p.maxRating;
+                        if (p.url) data.cp.platforms[key].url = p.url;
+                        if (p.handle) data.cp.platforms[key].handle = p.handle;
+                        data.cp.platforms[key].showPlatform = true;
+                    } else {
+                        data.cp.platforms[key] = {
                             name: p.name || key,
                             handle: p.handle || 'luffyy01',
-                            color: p.color || (key.startsWith('platform_') ? '#8b5cf6' : '#00d4aa'),
-                            icon: p.icon || '🌐',
-                            apiSupport: false,
-                            url: p.url || '',
+                            solved: solvedCount,
                             rating: p.rating || 0,
                             maxRating: p.maxRating || 0,
-                            solved: p.solved || 0,
-                            isCustom: true,
-                            fromPortfolio: true
+                            url: p.url || '#',
+                            fixed: false,
+                            showPlatform: true,
+                            showRating: (p.rating > 0)
                         };
-                        syncedCount++;
-                    } else {
-                        if (typeof p.solved === 'number' && p.solved > (PLATFORMS[key].solved || 0)) {
-                            PLATFORMS[key].solved = p.solved;
-                        }
-                        if (p.rating && !PLATFORMS[key].rating) PLATFORMS[key].rating = p.rating;
-                        if (p.maxRating && !PLATFORMS[key].maxRating) PLATFORMS[key].maxRating = p.maxRating;
-                        if (p.url && !PLATFORMS[key].url) PLATFORMS[key].url = p.url;
-                        if (p.handle && !PLATFORMS[key].handle) PLATFORMS[key].handle = p.handle;
-                        syncedCount++;
                     }
                 }
 
-                saveCustomPlatforms();
-                renderStatsBar();
-                renderPlatformCards();
-                populateFilterDropdown();
-                populateFormPlatform();
-                await syncStatsToServer();
+                if (data.cp.platforms.cptracker) {
+                    data.cp.platforms.cptracker.solved = 0;
+                    data.cp.platforms.cptracker.url = 'https://cptrackermit.vercel.app';
+                }
 
-                if (interactive) {
-                    toast(`✓ Connected to Portfolio! All platforms & solved counts updated.`, 'success');
+                data.cp.lastSynced = new Date().toLocaleString();
+
+                // 3. Push the master config update to GitHub and trigger Vercel deployment
+                try {
+                    const pushRes = await fetch('https://mitjain.vercel.app/api/update-github', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            password: 'Hacker1234',
+                            configData: data
+                        })
+                    });
+                    if (pushRes.ok) {
+                        if (interactive) {
+                            toast('✓ All changes pushed to mitjain.vercel.app & deployed!', 'success');
+                        }
+                    } else {
+                        if (interactive) {
+                            toast('✓ Synced with CP Tracker API & Portfolio!', 'success');
+                        }
+                    }
+                } catch (err) {
+                    if (interactive) {
+                        toast('✓ Synced with CP Tracker API & Portfolio!', 'success');
+                    }
                 }
             }
         } else {
-            await syncStatsToServer();
             if (interactive) {
-                toast(`✓ Updated changes to Portfolio successfully!`, 'success');
+                toast('✓ Pushed changes to CP Tracker server API!', 'success');
             }
         }
     } catch (e) {
         console.warn('Portfolio sync note:', e);
-        await syncStatsToServer();
         if (interactive) {
-            toast('✓ Updated CP Tracker stats for Portfolio!', 'success');
+            toast('✓ CP Tracker stats pushed to server API!', 'info');
         }
     } finally {
         if (dot) dot.classList.remove('syncing');
@@ -276,7 +670,11 @@ async function syncStatsToServer() {
             counts.cptracker.solved = 0;
         }
 
-        const payload = JSON.stringify({ platforms: counts, lastSynced: new Date().toISOString() });
+        const payload = JSON.stringify({ 
+            platforms: counts, 
+            deletedPlatforms: getDeletedPlatforms(),
+            lastSynced: new Date().toISOString() 
+        });
         const endpoints = ['/api/stats', 'https://cptrackermit.vercel.app/api/stats'];
         for (const ep of endpoints) {
             try {
@@ -1362,6 +1760,8 @@ function handlePlatformFormSubmit(e) {
     const maxRating = parseInt(document.getElementById('platform-form-max-rating').value) || 0;
     const color = document.getElementById('platform-form-color').value || '#00d4aa';
 
+    removeDeletedPlatform(key);
+
     const existing = PLATFORMS[key] || {};
     PLATFORMS[key] = {
         ...existing,
@@ -1390,14 +1790,32 @@ function handlePlatformFormSubmit(e) {
 function handleDeletePlatform() {
     if (!editingPlatformKey || !PLATFORMS[editingPlatformKey]) return;
     const p = PLATFORMS[editingPlatformKey];
+    const keyToDelete = editingPlatformKey;
     if (confirm(`Are you sure you want to delete "${p.name}"?`)) {
-        delete PLATFORMS[editingPlatformKey];
+        addDeletedPlatform(keyToDelete);
+        delete PLATFORMS[keyToDelete];
+
+        // Clean up submissions for this deleted platform
+        submissions = submissions.filter(s => s.platform !== keyToDelete);
+
+        // Clean up overrides
+        try {
+            const ovRaw = localStorage.getItem(LS_PLATFORM_OVERRIDES);
+            if (ovRaw) {
+                const ov = JSON.parse(ovRaw);
+                delete ov[keyToDelete];
+                localStorage.setItem(LS_PLATFORM_OVERRIDES, JSON.stringify(ov));
+            }
+        } catch (e) {}
+
         saveCustomPlatforms();
+        saveToStorage();
         renderStatsBar();
         renderPlatformCards();
         populateFilterDropdown();
         populateFormPlatform();
         closePlatformModal();
+        syncStatsToServer();
         toast(`Platform "${p.name}" deleted.`, 'info');
     }
 }

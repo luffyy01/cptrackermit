@@ -54,10 +54,17 @@ module.exports = async (req, res) => {
                     mergedPlatforms.cptracker.solved = 0;
                 }
 
+                // Honor deleted platforms
+                const deletedList = Array.isArray(body.deletedPlatforms) ? body.deletedPlatforms : [];
+                for (const delKey of deletedList) {
+                    delete mergedPlatforms[delKey];
+                }
+
                 cachedData = {
                     ...prev,
                     ...body,
                     platforms: mergedPlatforms,
+                    deletedPlatforms: deletedList,
                     updatedAt: new Date().toISOString()
                 };
                 writeDiskCache(cachedData);
@@ -76,9 +83,9 @@ module.exports = async (req, res) => {
         codeforces: {
             name: 'Codeforces',
             handle: handle,
-            solved: 1490,
-            rating: 1227,
-            maxRating: 1467,
+            solved: 1491,
+            rating: 1478,
+            maxRating: 1478,
             url: `https://codeforces.com/profile/${handle}`
         },
         leetcode: {
@@ -173,6 +180,13 @@ module.exports = async (req, res) => {
             } else {
                 platforms[k] = v;
             }
+        }
+    }
+
+    // Prune any platforms explicitly deleted by client
+    if (activeCache && Array.isArray(activeCache.deletedPlatforms)) {
+        for (const delKey of activeCache.deletedPlatforms) {
+            delete platforms[delKey];
         }
     }
 
