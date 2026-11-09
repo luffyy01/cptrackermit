@@ -68,6 +68,14 @@ let activePlatformFilter = null; // Platform card click filter
 // ─── LocalStorage Keys ─────────────────────────────────────
 const LS_SUBMISSIONS = 'cp_tracker_submissions';
 const LS_LAST_SYNCED = 'cp_tracker_last_synced';
+const LS_CUSTOM_PLATFORMS = 'cp_tracker_custom_platforms';
+
+const DEFAULT_PLATFORM_KEYS = [
+    'codeforces', 'leetcode', 'atcoder', 'codechef', 'gfg',
+    'cses', 'vjudge', 'spoj', 'euler', 'usaco', 'kattis'
+];
+
+let editingPlatformKey = null;
 
 // ─── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -79,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyFilters();
     bindEvents();
     updateLastSynced();
-    syncWithPortfolio();
+    syncWithPortfolio(false);
 });
 
 // ─── Storage ────────────────────────────────────────────────
@@ -88,6 +96,20 @@ function loadFromStorage() {
         const data = localStorage.getItem(LS_SUBMISSIONS);
         if (data) submissions = JSON.parse(data);
     } catch (e) { submissions = []; }
+
+    // Load any custom or portfolio platforms
+    try {
+        const customData = localStorage.getItem(LS_CUSTOM_PLATFORMS);
+        if (customData) {
+            const custom = JSON.parse(customData);
+            for (const [key, p] of Object.entries(custom)) {
+                PLATFORMS[key] = {
+                    ...(PLATFORMS[key] || {}),
+                    ...p
+                };
+            }
+        }
+    } catch (e) {}
 }
 
 function saveToStorage() {
@@ -95,38 +117,83 @@ function saveToStorage() {
     syncStatsToServer();
 }
 
-async function syncWithPortfolio() {
+function saveCustomPlatforms() {
+    try {
+        const custom = {};
+        for (const [key, p] of Object.entries(PLATFORMS)) {
+            if (p.isCustom || p.fromPortfolio || !DEFAULT_PLATFORM_KEYS.includes(key)) {
+                custom[key] = p;
+            }
+        }
+        localStorage.setItem(LS_CUSTOM_PLATFORMS, JSON.stringify(custom));
+        syncStatsToServer();
+    } catch (e) {}
+}
+
+async function syncWithPortfolio(interactive = false) {
+    const dot = document.querySelector('.portfolio-dot');
+    if (dot) dot.classList.add('syncing');
+
+    if (interactive) {
+        toast('Connecting to mitjain.vercel.app...', 'info');
+    }
+
     try {
         const res = await fetch('https://mitjain.vercel.app/site-config.json?v=' + Date.now());
         if (res.ok) {
             const data = await res.json();
             if (data && data.cp && data.cp.platforms) {
-                let added = false;
+                let syncedCount = 0;
                 for (const [key, p] of Object.entries(data.cp.platforms)) {
                     if (key === 'cptracker') continue;
-                    if (!PLATFORMS[key]) {
+                    const exists = !!PLATFORMS[key];
+                    if (!exists) {
                         PLATFORMS[key] = {
                             name: p.name || key,
-                            handle: p.handle || '',
-                            color: '#8b5cf6',
-                            icon: '🌐',
+                            handle: p.handle || 'luffyy01',
+                            color: p.color || (key.startsWith('platform_') ? '#8b5cf6' : '#00d4aa'),
+                            icon: p.icon || '🌐',
                             apiSupport: false,
                             url: p.url || '',
                             rating: p.rating || 0,
-                            maxRating: p.maxRating || 0
+                            maxRating: p.maxRating || 0,
+                            solved: p.solved || 0,
+                            isCustom: true,
+                            fromPortfolio: true
                         };
-                        added = true;
+                        syncedCount++;
+                    } else {
+                        if (typeof p.solved === 'number' && p.solved > (PLATFORMS[key].solved || 0)) {
+                            PLATFORMS[key].solved = p.solved;
+                        }
+                        if (p.rating && !PLATFORMS[key].rating) PLATFORMS[key].rating = p.rating;
+                        if (p.maxRating && !PLATFORMS[key].maxRating) PLATFORMS[key].maxRating = p.maxRating;
+                        if (p.url && !PLATFORMS[key].url) PLATFORMS[key].url = p.url;
+                        if (p.handle && !PLATFORMS[key].handle) PLATFORMS[key].handle = p.handle;
+                        syncedCount++;
                     }
                 }
-                if (added) {
-                    renderPlatformCards();
-                    populateFilterDropdown();
-                    populateFormPlatform();
+
+                saveCustomPlatforms();
+                renderStatsBar();
+                renderPlatformCards();
+                populateFilterDropdown();
+                populateFormPlatform();
+
+                if (interactive) {
+                    toast(`Connected to mitjain.vercel.app! ${syncedCount} platforms synchronized.`, 'success');
                 }
             }
+        } else if (interactive) {
+            toast('Failed to reach mitjain.vercel.app', 'error');
         }
     } catch (e) {
-        console.log('Portfolio config sync note:', e);
+        console.warn('Portfolio config sync note:', e);
+        if (interactive) {
+            toast('Connection error: ' + e.message, 'error');
+        }
+    } finally {
+        if (dot) dot.classList.remove('syncing');
     }
 }
 
@@ -182,6 +249,33 @@ function bindEvents() {
     });
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
 
+    // Platform Management & Portfolio Connection
+    const btnAddPlat = document.getElementById('btn-add-platform');
+    if (btnAddPlat) btnAddPlat.addEventListener('click', () => openPlatformModal());
+    const btnConnPort = document.getElementById('btn-connect-portfolio');
+    if (btnConnPort) btnConnPort.addEventListener('click', () => syncWithPortfolio(true));
+    const btnPlatClose = document.getElementById('platform-modal-close');
+    if (btnPlatClose) btnPlatClose.addEventListener('click', closePlatformModal);
+    const btnPlatCancel = document.getElementById('btn-cancel-platform');
+    if (btnPlatCancel) btnPlatCancel.addEventListener('click', closePlatformModal);
+    const btnPlatDel = document.getElementById('btn-delete-platform');
+    if (btnPlatDel) btnPlatDel.addEventListener('click', handleDeletePlatform);
+    const platForm = document.getElementById('platform-form');
+    if (platForm) platForm.addEventListener('submit', handlePlatformFormSubmit);
+    const platColorInput = document.getElementById('platform-form-color');
+    if (platColorInput) {
+        platColorInput.addEventListener('input', (e) => {
+            const hexEl = document.getElementById('platform-color-hex');
+            if (hexEl) hexEl.textContent = e.target.value;
+        });
+    }
+    const platOverlay = document.getElementById('platform-modal-overlay');
+    if (platOverlay) {
+        platOverlay.addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closePlatformModal();
+        });
+    }
+
     // Multiple Solutions
     document.getElementById('btn-add-solution').addEventListener('click', () => addSolutionField());
     document.getElementById('solutions-modal-close').addEventListener('click', closeSolutionsModal);
@@ -207,6 +301,7 @@ function bindEvents() {
         if (e.key === 'Escape') {
             closeModal();
             closeSolutionsModal();
+            closePlatformModal();
         }
         if (e.key === 'n' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); openModal(); }
     });
@@ -260,7 +355,7 @@ function renderPlatformCards() {
         const count = Math.max(subCount, p.solved || 0);
         const card = document.createElement('div');
         card.className = `platform-card${activePlatformFilter === key ? ' active' : ''}`;
-        card.style.setProperty('--platform-color', p.color);
+        card.style.setProperty('--platform-color', p.color || '#00d4aa');
         card.dataset.platform = key;
 
         let ratingHtml = '';
@@ -268,27 +363,47 @@ function renderPlatformCards() {
             ratingHtml = `<div class="platform-meta">Rating: ${p.rating || '–'} (max: ${p.maxRating || '–'})</div>`;
         }
 
+        const isCustom = p.isCustom || p.fromPortfolio || !DEFAULT_PLATFORM_KEYS.includes(key);
+
         card.innerHTML = `
             <div class="platform-header">
                 <span class="platform-name">
-                    <span class="platform-icon">${p.icon}</span>
+                    <span class="platform-icon">${p.icon || '🌐'}</span>
                     ${p.name}
                 </span>
-                <span class="platform-badge ${p.apiSupport ? '' : 'manual'}">${p.apiSupport ? 'API' : 'Manual'}</span>
+                <span class="platform-badge ${p.apiSupport ? '' : 'manual'}">${p.apiSupport ? 'API' : (isCustom ? 'Custom' : 'Manual')}</span>
             </div>
             <div class="platform-solved">${count}</div>
             <div class="platform-meta">problems solved</div>
             ${ratingHtml}
-            <div class="platform-quick-actions">
-                <a class="platform-link" href="${p.url}" target="_blank" onclick="event.stopPropagation()">
-                    @${p.handle}
+            <div class="platform-actions">
+                <a class="platform-link" href="${p.url || '#'}" target="_blank" onclick="event.stopPropagation()">
+                    @${p.handle || 'user'}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
-                <button class="platform-add-btn" title="Add question for ${p.name}" onclick="event.stopPropagation(); openModal(null, '${key}')">
-                    + Add Q
-                </button>
+                <div class="platform-btn-group" onclick="event.stopPropagation()">
+                    <button class="btn-platform-action btn-add-sub-quick" data-add-platform="${key}" title="Add question for ${p.name}">+ Add Q</button>
+                    <button class="btn-platform-action btn-edit-platform" data-edit-platform="${key}" title="Manage ${p.name}">⚙️</button>
+                </div>
             </div>
         `;
+
+        // Direct Action Buttons
+        const addBtn = card.querySelector('.btn-add-sub-quick');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openModal(null, key);
+            });
+        }
+
+        const editBtn = card.querySelector('.btn-edit-platform');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openPlatformModal(key);
+            });
+        }
 
         card.addEventListener('click', () => {
             if (activePlatformFilter === key) {
@@ -311,6 +426,108 @@ function highlightPlatformCards() {
     document.querySelectorAll('.platform-card').forEach(card => {
         card.classList.toggle('active', card.dataset.platform === activePlatformFilter);
     });
+}
+
+// ─── Platform Modal Logic ────────────────────────────────────
+function openPlatformModal(key = null) {
+    const overlay = document.getElementById('platform-modal-overlay');
+    const title = document.getElementById('platform-modal-title');
+    const form = document.getElementById('platform-form');
+    const delBtn = document.getElementById('btn-delete-platform');
+    
+    editingPlatformKey = key;
+    if (key && PLATFORMS[key]) {
+        const p = PLATFORMS[key];
+        title.textContent = `Edit Platform: ${p.name}`;
+        document.getElementById('platform-form-key').value = key;
+        document.getElementById('platform-form-name').value = p.name;
+        document.getElementById('platform-form-icon').value = p.icon || '🌐';
+        document.getElementById('platform-form-handle').value = p.handle || '';
+        document.getElementById('platform-form-solved').value = p.solved || 0;
+        document.getElementById('platform-form-url').value = p.url || '';
+        document.getElementById('platform-form-rating').value = p.rating || '';
+        document.getElementById('platform-form-max-rating').value = p.maxRating || '';
+        document.getElementById('platform-form-color').value = p.color || '#00d4aa';
+        document.getElementById('platform-color-hex').textContent = p.color || '#00d4aa';
+        delBtn.style.display = DEFAULT_PLATFORM_KEYS.includes(key) ? 'none' : 'block';
+    } else {
+        editingPlatformKey = null;
+        title.textContent = 'Add CP Platform';
+        form.reset();
+        document.getElementById('platform-form-key').value = '';
+        document.getElementById('platform-form-icon').value = '🌐';
+        document.getElementById('platform-form-color').value = '#00d4aa';
+        document.getElementById('platform-color-hex').textContent = '#00d4aa';
+        delBtn.style.display = 'none';
+    }
+
+    overlay.classList.add('open');
+    setTimeout(() => document.getElementById('platform-form-name').focus(), 150);
+}
+
+function closePlatformModal() {
+    const overlay = document.getElementById('platform-modal-overlay');
+    if (overlay) overlay.classList.remove('open');
+    editingPlatformKey = null;
+}
+
+function handlePlatformFormSubmit(e) {
+    e.preventDefault();
+    const name = document.getElementById('platform-form-name').value.trim();
+    if (!name) return;
+
+    let key = document.getElementById('platform-form-key').value.trim();
+    if (!key) {
+        const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        key = `platform_${slug}_${Date.now()}`;
+    }
+
+    const icon = document.getElementById('platform-form-icon').value.trim() || '🌐';
+    const handle = document.getElementById('platform-form-handle').value.trim() || 'luffyy01';
+    const solved = parseInt(document.getElementById('platform-form-solved').value) || 0;
+    const url = document.getElementById('platform-form-url').value.trim();
+    const rating = parseInt(document.getElementById('platform-form-rating').value) || 0;
+    const maxRating = parseInt(document.getElementById('platform-form-max-rating').value) || 0;
+    const color = document.getElementById('platform-form-color').value || '#00d4aa';
+
+    const existing = PLATFORMS[key] || {};
+    PLATFORMS[key] = {
+        ...existing,
+        name,
+        handle,
+        icon,
+        solved,
+        url,
+        rating,
+        maxRating,
+        color,
+        isCustom: true,
+        apiSupport: existing.apiSupport || false
+    };
+
+    saveCustomPlatforms();
+    renderStatsBar();
+    renderPlatformCards();
+    populateFilterDropdown();
+    populateFormPlatform();
+    closePlatformModal();
+
+    toast(`Platform "${name}" saved & synced with Portfolio!`, 'success');
+}
+
+function handleDeletePlatform() {
+    if (!editingPlatformKey || !PLATFORMS[editingPlatformKey]) return;
+    const p = PLATFORMS[editingPlatformKey];
+    if (confirm(`Are you sure you want to delete "${p.name}"?`)) {
+        delete PLATFORMS[editingPlatformKey];
+        saveCustomPlatforms();
+        renderStatsBar();
+        renderPlatformCards();
+        populateFilterDropdown();
+        populateFormPlatform();
+        closePlatformModal();
+        toast(`Platform "${p.name}" deleted.`, 'info');
+    }
 }
 
 // ─── Filter Dropdown ────────────────────────────────────────

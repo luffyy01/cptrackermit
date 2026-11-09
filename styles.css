@@ -190,6 +190,42 @@ header {
 }
 .platform-link:hover { color: var(--accent); }
 
+.portfolio-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e88;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.portfolio-dot.syncing {
+    background: #eab308;
+    box-shadow: 0 0 8px #eab30888;
+    animation: dotPulse 1s infinite alternate;
+}
+@keyframes dotPulse {
+    0% { opacity: 0.4; transform: scale(0.85); }
+    100% { opacity: 1; transform: scale(1.15); }
+}
+
+.platform-actions {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 6px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);
+}
+.platform-btn-group {
+    display: flex; gap: 6px; align-items: center;
+}
+.btn-platform-action {
+    background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-muted); cursor: pointer; padding: 2px 7px;
+    font-size: 0.72rem; transition: all 0.15s; font-family: var(--font-code);
+}
+.btn-platform-action:hover {
+    color: var(--accent); border-color: var(--accent); background: rgba(0,212,170,0.05);
+}
+.btn-add-sub-quick {
+    color: var(--accent); border-color: var(--accent-glow);
+}
+
 /* ========== CONTROLS ========== */
 .controls {
     display: flex; align-items: center; gap: 12px;

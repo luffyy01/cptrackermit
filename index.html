@@ -20,6 +20,14 @@
             <span class="handle-badge">@luffyy01</span>
         </div>
         <div class="header-right">
+            <button class="btn btn-outline" id="btn-connect-portfolio" title="Sync & connect platforms from mitjain.vercel.app">
+                <span class="portfolio-dot"></span>
+                Connect Portfolio
+            </button>
+            <button class="btn btn-outline" id="btn-add-platform" title="Add a custom CP platform">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                + Add Platform
+            </button>
             <button class="btn btn-outline" id="btn-import" title="Import JSON">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Import
@@ -189,6 +197,78 @@
                 <button class="modal-close" id="solutions-modal-close">&times;</button>
             </div>
             <div id="solutions-modal-body" style="display:flex; flex-direction:column; gap:14px; max-height:60vh; overflow-y:auto; padding-right:4px;"></div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Platform Modal -->
+    <div class="modal-overlay" id="platform-modal-overlay">
+        <div class="modal" style="max-width: 520px;">
+            <div class="modal-header">
+                <div>
+                    <h2 id="platform-modal-title">Add CP Platform</h2>
+                    <span style="font-size:0.8rem; color:var(--text-sub);">Connect any platform to CP Tracker & Portfolio</span>
+                </div>
+                <button class="modal-close" id="platform-modal-close">&times;</button>
+            </div>
+            <form id="platform-form">
+                <input type="hidden" id="platform-form-key" value="">
+                <div class="form-row">
+                    <div class="form-group" style="flex:2;">
+                        <label for="platform-form-name">Platform Name *</label>
+                        <input type="text" id="platform-form-name" placeholder="e.g. Repopive, TopCoder, HackerEarth" required>
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label for="platform-form-icon">Icon / Emoji</label>
+                        <input type="text" id="platform-form-icon" placeholder="🌐" value="🌐" maxlength="4">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="platform-form-handle">Handle / Username *</label>
+                        <input type="text" id="platform-form-handle" placeholder="e.g. luffyy01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="platform-form-solved">Solved Problems *</label>
+                        <input type="number" id="platform-form-solved" placeholder="0" min="0" value="0" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="platform-form-url">Profile URL <span class="hint">(optional)</span></label>
+                    <input type="url" id="platform-form-url" placeholder="https://...">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="platform-form-rating">Current Rating <span class="hint">(optional)</span></label>
+                        <input type="number" id="platform-form-rating" placeholder="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="platform-form-max-rating">Max Rating <span class="hint">(optional)</span></label>
+                        <input type="number" id="platform-form-max-rating" placeholder="0" min="0">
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:center;">
+                    <div class="form-group" style="flex:1;">
+                        <label for="platform-form-color">Card Accent Color</label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="color" id="platform-form-color" value="#00d4aa" style="width:40px; height:38px; border:none; border-radius:6px; cursor:pointer; background:none;">
+                            <span id="platform-color-hex" style="font-family:var(--font-code); font-size:0.8rem; color:var(--text-sub);">#00d4aa</span>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; margin-top:24px;">
+                            <input type="checkbox" id="platform-form-sync" checked>
+                            <span style="font-size:0.82rem; color:var(--text-sub);">Sync to mitjain.vercel.app</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-actions" style="margin-top:20px; display:flex; justify-content:space-between;">
+                    <button type="button" class="btn btn-outline" id="btn-delete-platform" style="display:none; color:var(--red); border-color:#ff475744;">Delete Platform</button>
+                    <div style="display:flex; gap:10px; margin-left:auto;">
+                        <button type="button" class="btn btn-outline" id="btn-cancel-platform">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-platform">Save Platform</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
