@@ -33,7 +33,7 @@ const PLATFORMS = {
     },
     cses: {
         name: 'CSES', handle: 'mit_001', color: '#607d8b', icon: '📘',
-        apiSupport: false, url: 'https://cses.fi/user/mit_001', solved: 35
+        apiSupport: false, url: 'https://cses.fi/problemset/list/', solved: 35
     },
     vjudge: {
         name: 'VJudge', handle: 'luffyy01', color: '#5cb85c', icon: '⚖️',
@@ -583,17 +583,145 @@ async function executeQuickSolve() {
     const previewEl = document.getElementById('quick-solve-preview');
 
     if (!input) return;
-    let url = input.value.trim();
-    if (!url) {
+    let rawText = input.value.trim();
+    if (!rawText) {
         showQuickStatus('⚠️ Please paste a problem link first!', 'error');
         input.focus();
         return;
     }
 
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-        input.value = url;
+    // Extract all URLs (supports single link or multiple newline/space separated links)
+    let urls = rawText.match(/https?:\/\/[^\s"',;>)]+/gi) || [];
+    if (urls.length === 0) {
+        if (rawText.includes('.') && !rawText.includes(' ')) {
+            urls = ['https://' + rawText];
+        } else {
+            showQuickStatus('⚠️ Please enter a valid URL (e.g. https://cses.fi/problemset/task/1068)', 'error');
+            input.focus();
+            return;
+        }
     }
+
+    // --- BULK MODE (multiple URLs pasted at once) ---
+    if (urls.length > 1) {
+        if (btn) {
+            btn.disabled = true;
+            const btnText = btn.querySelector('.btn-text');
+            if (btnText) btnText.textContent = `⚡ Adding ${urls.length} problems...`;
+            if (spinner) spinner.style.display = 'inline-block';
+        }
+        input.disabled = true;
+        showQuickStatus(`⚡ Bulk processing ${urls.length} problem links...`, 'info');
+
+        let addedCount = 0;
+        const platformCounts = {};
+
+        for (let i = 0; i < urls.length; i++) {
+            const u = urls[i];
+            const info = detectPlatformAndNameFromUrl(u) || {};
+            const plat = info.platform || 'other';
+            let name = info.problemName;
+
+            // Fast lookup with 2s timeout
+            try {
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 2000);
+                const res = await fetch(`/api/problem-info?url=${encodeURIComponent(u)}`, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success) {
+                        if (data.problemName) name = data.problemName;
+                        if (data.difficulty) info.difficulty = data.difficulty;
+                        if (data.tags) info.tags = data.tags;
+                    }
+                }
+            } catch (e) {}
+
+            if (!name) {
+                const seg = u.split('/').filter(Boolean);
+                name = slugToTitle(seg[seg.length - 1]) || `Problem ${i + 1}`;
+            }
+
+            if (!PLATFORMS[plat]) {
+                PLATFORMS[plat] = {
+                    name: plat.charAt(0).toUpperCase() + plat.slice(1),
+                    handle: 'user',
+                    color: '#00d4aa',
+                    icon: '🌐',
+                    apiSupport: false,
+                    url: u,
+                    solved: 0,
+                    isCustom: true
+                };
+            }
+
+            const cleanU = normalizeProblemUrl(u);
+            const exists = submissions.some(s => s.problemLink && normalizeProblemUrl(s.problemLink) === cleanU);
+            if (!exists) {
+                const newId = generateId();
+                submissions.unshift({
+                    id: newId,
+                    platform: plat,
+                    problemName: name,
+                    problemLink: u,
+                    submissionLink: '',
+                    solutions: [],
+                    difficulty: info.difficulty || 'Medium',
+                    tags: info.tags || [],
+                    language: 'C++',
+                    date: new Date().toISOString().split('T')[0],
+                    source: 'manual',
+                    verdict: 'OK'
+                });
+                addedCount++;
+                platformCounts[plat] = (platformCounts[plat] || 0) + 1;
+            }
+        }
+
+        for (const [pKey, cnt] of Object.entries(platformCounts)) {
+            const subCount = submissions.filter(s => s.platform === pKey).length;
+            PLATFORMS[pKey].solved = Math.max((PLATFORMS[pKey].solved || 0) + cnt, subCount);
+            if (!DEFAULT_PLATFORM_KEYS.includes(pKey)) PLATFORMS[pKey].isCustom = true;
+        }
+
+        savePlatformCounts();
+        saveCustomPlatforms();
+        saveToStorage();
+
+        currentPage = 1;
+        renderStatsBar();
+        renderPlatformCards();
+        applyFilters();
+        syncStatsToServer();
+
+        let totalSolved = 0;
+        for (const [k, p] of Object.entries(PLATFORMS)) {
+            if (k === 'cptracker') continue;
+            const subCount = submissions.filter(s => s.platform === k).length;
+            totalSolved += Math.max(subCount, p.solved || 0);
+        }
+
+        input.value = '';
+        input.disabled = false;
+        const clearBtn = document.getElementById('quick-clear-btn');
+        if (clearBtn) clearBtn.style.display = 'none';
+
+        if (btn) {
+            btn.disabled = false;
+            const btnText = btn.querySelector('.btn-text');
+            if (btnText) btnText.textContent = '⚡ Mark Solved';
+            if (spinner) spinner.style.display = 'none';
+        }
+
+        showQuickStatus(`🎉 Successfully marked <strong>${addedCount}</strong> problems solved! (Total Solved: <strong>${totalSolved}</strong>)`, 'success');
+        toast(`🎉 Added ${addedCount} solved problems to CP Tracker!`, 'success');
+        return;
+    }
+
+    // --- SINGLE URL MODE ---
+    let url = urls[0];
+    input.value = url;
 
     // Set UI loading state
     if (btn) {

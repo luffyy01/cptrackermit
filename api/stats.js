@@ -76,7 +76,7 @@ module.exports = async (req, res) => {
             solved: 35,
             rating: 0,
             maxRating: 0,
-            url: 'https://cses.fi/user/mit_001'
+            url: 'https://cses.fi/problemset/list/'
         },
         vjudge: {
             name: 'Vjudge',
