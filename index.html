@@ -54,6 +54,41 @@
         <!-- Dynamically filled -->
     </section>
 
+    <!-- Quick Solve (One-Click Link Paste) Bar -->
+    <section class="quick-solve-section" id="quick-solve-section">
+        <div class="quick-solve-card">
+            <div class="quick-solve-header">
+                <div class="quick-solve-badge">
+                    <span class="quick-solve-pulse"></span>
+                    <span class="quick-solve-icon">⚡</span>
+                    <strong>One-Click Quick Solve</strong>
+                </div>
+                <p class="quick-solve-desc">Paste any problem link (LeetCode, Codeforces, CodeChef, AtCoder, CSES, GFG) — name is auto-detected &amp; marked solved in 1 click!</p>
+            </div>
+            <form class="quick-solve-form" id="quick-solve-form" onsubmit="return false;">
+                <div class="quick-solve-input-group">
+                    <span class="quick-input-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    </span>
+                    <input type="url" id="quick-solve-input" class="quick-solve-input" placeholder="Paste problem URL here to mark as solved (e.g. https://leetcode.com/problems/two-sum/)..." spellcheck="false" autocomplete="off" required>
+                    <button type="button" class="quick-clear-btn" id="quick-clear-btn" title="Clear input" style="display:none;">✕</button>
+                    <button type="button" class="btn btn-outline quick-paste-btn" id="quick-paste-btn" title="Paste from clipboard">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>Paste</span>
+                    </button>
+                </div>
+                <button type="button" class="btn btn-primary btn-quick-submit" id="btn-quick-solve">
+                    <span class="btn-text">⚡ Mark Solved</span>
+                    <span class="btn-spinner" id="quick-solve-spinner" style="display:none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-svg"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/></svg>
+                    </span>
+                </button>
+            </form>
+            <div class="quick-solve-preview" id="quick-solve-preview" style="display:none;"></div>
+            <div class="quick-solve-status" id="quick-solve-status" style="display:none;"></div>
+        </div>
+    </section>
+
     <!-- Controls -->
     <section class="controls">
         <div class="search-box">

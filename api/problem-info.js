@@ -221,16 +221,28 @@ module.exports = async (req, res) => {
                     .replace(/\s*\|\s*LeetCode\s*$/i, '')
                     .replace(/\s*-\s*Codeforces\s*$/i, '')
                     .replace(/\s*\|\s*Codeforces\s*$/i, '')
+                    .replace(/\s*\|\s*Practice\s*\|\s*GeeksforGeeks\s*$/i, '')
                     .replace(/\s*-\s*GeeksforGeeks\s*$/i, '')
+                    .replace(/\s*\|\s*GeeksforGeeks\s*$/i, '')
+                    .replace(/\s*Practice\s*Coding\s*Problem\s*$/i, '')
+                    .replace(/\s*Coding\s*Problem\s*$/i, '')
                     .replace(/\s*\|\s*CodeChef\s*$/i, '')
-                    .replace(/\s*-\s*AtCoder\s*$/i, '')
+                    .replace(/\s*-\s*CodeChef\s*$/i, '')
+                    .replace(/^\s*CSES\s*-\s*/i, '')
                     .replace(/\s*-\s*CSES\s*$/i, '')
+                    .replace(/\s*-\s*AtCoder\s*$/i, '')
                     .replace(/\s*\|\s*HackerRank\s*$/i, '')
                     .replace(/\s*-\s*VJudge\s*$/i, '')
                     .trim();
 
-                if (pageTitle && (!result.problemName || result.problemName.startsWith('Problem '))) {
-                    result.problemName = pageTitle;
+                if (pageTitle && pageTitle.length > 1) {
+                    if (result.platform === 'codechef' && result.problemName) {
+                        result.problemName = `${result.problemName} - ${pageTitle}`;
+                    } else if (result.platform === 'cses' && result.problemName) {
+                        result.problemName = `${result.problemName}: ${pageTitle}`;
+                    } else if (!result.problemName || result.problemName.startsWith('Problem ')) {
+                        result.problemName = pageTitle;
+                    }
                 }
             }
         }

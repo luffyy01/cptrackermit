@@ -69,6 +69,7 @@ let activePlatformFilter = null; // Platform card click filter
 const LS_SUBMISSIONS = 'cp_tracker_submissions';
 const LS_LAST_SYNCED = 'cp_tracker_last_synced';
 const LS_CUSTOM_PLATFORMS = 'cp_tracker_custom_platforms';
+const LS_PLATFORM_OVERRIDES = 'cp_tracker_platform_overrides';
 const CURRENT_DATA_VERSION = 'v2_cf_1490';
 const LS_DATA_VERSION = 'cp_tracker_data_version';
 
@@ -124,11 +125,43 @@ function loadFromStorage() {
             }
         }
     } catch (e) {}
+
+    // Load platform count overrides (e.g. solved increments on default platforms)
+    try {
+        const overridesData = localStorage.getItem(LS_PLATFORM_OVERRIDES);
+        if (overridesData) {
+            const overrides = JSON.parse(overridesData);
+            for (const [key, ov] of Object.entries(overrides)) {
+                if (PLATFORMS[key]) {
+                    if (typeof ov.solved === 'number') {
+                        PLATFORMS[key].solved = Math.max(PLATFORMS[key].solved || 0, ov.solved);
+                    }
+                    if (ov.rating) PLATFORMS[key].rating = ov.rating;
+                    if (ov.maxRating) PLATFORMS[key].maxRating = ov.maxRating;
+                }
+            }
+        }
+    } catch (e) {}
 }
 
 function saveToStorage() {
     localStorage.setItem(LS_SUBMISSIONS, JSON.stringify(submissions));
+    savePlatformCounts();
     syncStatsToServer();
+}
+
+function savePlatformCounts() {
+    try {
+        const overrides = {};
+        for (const [key, p] of Object.entries(PLATFORMS)) {
+            overrides[key] = {
+                solved: p.solved,
+                rating: p.rating,
+                maxRating: p.maxRating
+            };
+        }
+        localStorage.setItem(LS_PLATFORM_OVERRIDES, JSON.stringify(overrides));
+    } catch (e) {}
 }
 
 function saveCustomPlatforms() {
@@ -140,6 +173,7 @@ function saveCustomPlatforms() {
             }
         }
         localStorage.setItem(LS_CUSTOM_PLATFORMS, JSON.stringify(custom));
+        savePlatformCounts();
         syncStatsToServer();
     } catch (e) {}
 }
@@ -397,6 +431,336 @@ async function handleLinkAutofetch() {
     }
 }
 
+// ─── One-Click Quick Mark as Solved ─────────────────────────
+let newlyAddedSubId = null;
+
+function slugToTitle(slug) {
+    if (!slug) return '';
+    return slug
+        .replace(/[-_]+/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+}
+
+function normalizeProblemUrl(raw) {
+    if (!raw) return '';
+    let str = raw.trim();
+    if (!str.startsWith('http://') && !str.startsWith('https://')) {
+        str = 'https://' + str;
+    }
+    try {
+        const u = new URL(str);
+        return `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
+    } catch (e) {
+        return str.replace(/\/+$/, '');
+    }
+}
+
+function detectPlatformAndNameFromUrl(rawUrl) {
+    let url = (rawUrl || '').trim();
+    if (!url) return null;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+
+    let platform = 'other';
+    let problemName = '';
+    let difficulty = '';
+    let tags = [];
+
+    try {
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        const path = u.pathname;
+
+        if (host.includes('leetcode.com')) {
+            platform = 'leetcode';
+            const m = path.match(/\/problems\/([^\/]+)/);
+            if (m && m[1]) {
+                problemName = slugToTitle(m[1]);
+            }
+        } else if (host.includes('codeforces.com')) {
+            platform = 'codeforces';
+            const m = path.match(/(?:group\/([^\/]+)\/contest|contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9]+)/);
+            if (m) {
+                const grp = m[1];
+                const cid = m[2];
+                const idx = m[3].toUpperCase();
+                problemName = `${idx}. Problem ${cid}${idx}`;
+                if (grp) tags.push('Private Group');
+            }
+        } else if (host.includes('codechef.com')) {
+            platform = 'codechef';
+            const m = path.match(/\/problems\/([^\/\?#]+)/);
+            if (m && m[1]) {
+                problemName = m[1].toUpperCase();
+            }
+        } else if (host.includes('atcoder.jp')) {
+            platform = 'atcoder';
+            const m = path.match(/\/tasks\/([^\/\?#]+)/);
+            if (m && m[1]) {
+                problemName = m[1].toUpperCase().replace('_', ' ');
+            }
+        } else if (host.includes('cses.fi')) {
+            platform = 'cses';
+            const m = path.match(/\/task\/(\d+)/);
+            if (m && m[1]) {
+                problemName = `CSES ${m[1]}`;
+            }
+        } else if (host.includes('geeksforgeeks.org')) {
+            platform = 'gfg';
+            const m = path.match(/\/problems\/([^\/\?#]+)/);
+            if (m && m[1]) {
+                problemName = slugToTitle(m[1].replace(/-\d{6,}$/, ''));
+            }
+        } else if (host.includes('vjudge.net')) {
+            platform = 'vjudge';
+            const m = path.match(/\/problem\/([^\/\?#]+)/);
+            if (m && m[1]) {
+                problemName = m[1].replace(/[-_]+/g, ' ');
+            }
+        } else if (host.includes('spoj.com')) {
+            platform = 'spoj';
+            const m = path.match(/\/problems\/([^\/\?#]+)/);
+            if (m && m[1]) {
+                problemName = m[1].toUpperCase();
+            }
+        } else {
+            const parts = host.replace(/^www\./, '').split('.');
+            platform = parts[0] || 'other';
+            const segments = path.split('/').filter(Boolean);
+            if (segments.length > 0) {
+                problemName = slugToTitle(segments[segments.length - 1]);
+            }
+        }
+    } catch (e) {}
+
+    return { url, platform, problemName, difficulty, tags };
+}
+
+function updateQuickPreview(info) {
+    const previewEl = document.getElementById('quick-solve-preview');
+    if (!previewEl) return;
+
+    if (!info || (!info.platform && !info.problemName)) {
+        previewEl.style.display = 'none';
+        previewEl.innerHTML = '';
+        return;
+    }
+
+    const p = PLATFORMS[info.platform] || { name: (info.platform || 'Platform').toUpperCase(), icon: '🌐', color: 'var(--accent)' };
+    const pIcon = p.icon || '🌐';
+    const pName = p.name || info.platform;
+    const diffBadge = info.difficulty ? `<span class="quick-preview-diff ${getDifficultyClass(info.difficulty)}" style="background:rgba(255,255,255,0.06);">${escHtml(info.difficulty)}</span>` : '';
+    const tagsHtml = (info.tags || []).slice(0, 3).map(t => `<span class="tag">${escHtml(t)}</span>`).join('');
+
+    previewEl.innerHTML = `
+        <span class="quick-preview-badge" style="color:${p.color || 'var(--accent)'}; border-color:${p.color || 'var(--border)'};">
+            ${pIcon} ${escHtml(pName)}
+        </span>
+        <span class="quick-preview-name">${escHtml(info.problemName || 'Detecting problem name...')}</span>
+        ${diffBadge}
+        ${tagsHtml ? `<span class="quick-preview-tags">${tagsHtml}</span>` : ''}
+    `;
+    previewEl.style.display = 'flex';
+}
+
+function showQuickStatus(msg, type = 'info') {
+    const el = document.getElementById('quick-solve-status');
+    if (!el) return;
+    el.className = `quick-solve-status ${type}`;
+    el.innerHTML = msg;
+    el.style.display = 'flex';
+}
+
+async function executeQuickSolve() {
+    const input = document.getElementById('quick-solve-input');
+    const btn = document.getElementById('btn-quick-solve');
+    const spinner = document.getElementById('quick-solve-spinner');
+    const statusEl = document.getElementById('quick-solve-status');
+    const previewEl = document.getElementById('quick-solve-preview');
+
+    if (!input) return;
+    let url = input.value.trim();
+    if (!url) {
+        showQuickStatus('⚠️ Please paste a problem link first!', 'error');
+        input.focus();
+        return;
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+        input.value = url;
+    }
+
+    // Set UI loading state
+    if (btn) {
+        btn.disabled = true;
+        const btnText = btn.querySelector('.btn-text');
+        if (btnText) btnText.textContent = '⚡ Marking Solved...';
+        if (spinner) spinner.style.display = 'inline-block';
+    }
+    input.disabled = true;
+    showQuickStatus('⚡ Auto-detecting problem details from link & marking as solved...', 'info');
+
+    // Fast client-side preliminary heuristics
+    const initialInfo = detectPlatformAndNameFromUrl(url) || {};
+    updateQuickPreview(initialInfo);
+
+    let detectedPlatform = initialInfo.platform || 'other';
+    let detectedName = initialInfo.problemName || '';
+    let detectedDifficulty = initialInfo.difficulty || '';
+    let detectedTags = initialInfo.tags || [];
+
+    // Call /api/problem-info to get official name, rating/difficulty, and tags
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6500);
+
+        const res = await fetch(`/api/problem-info?url=${encodeURIComponent(url)}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                if (data.platform) detectedPlatform = data.platform;
+                if (data.problemName) detectedName = data.problemName;
+                if (data.difficulty) detectedDifficulty = data.difficulty;
+                if (Array.isArray(data.tags) && data.tags.length > 0) {
+                    detectedTags = Array.from(new Set([...detectedTags, ...data.tags]));
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Quick solve autofetch note:', e.message);
+    }
+
+    if (!detectedName) {
+        const seg = url.split('/').filter(Boolean);
+        detectedName = initialInfo.problemName || slugToTitle(seg[seg.length - 1]) || 'New Problem';
+    }
+
+    // Ensure platform exists in PLATFORMS
+    if (!PLATFORMS[detectedPlatform]) {
+        const pName = detectedPlatform.charAt(0).toUpperCase() + detectedPlatform.slice(1);
+        PLATFORMS[detectedPlatform] = {
+            name: pName,
+            handle: 'user',
+            color: '#00d4aa',
+            icon: '🌐',
+            apiSupport: false,
+            url: url,
+            solved: 0,
+            isCustom: true
+        };
+        populateFilterDropdown();
+        populateFormPlatform();
+    }
+
+    // Check if duplicate
+    const cleanCurrentUrl = normalizeProblemUrl(url);
+    const existingIndex = submissions.findIndex(s => {
+        if (s.problemLink && normalizeProblemUrl(s.problemLink) === cleanCurrentUrl) return true;
+        if (s.problemName && detectedName && s.problemName.toLowerCase().trim() === detectedName.toLowerCase().trim() && s.platform === detectedPlatform) return true;
+        return false;
+    });
+
+    const isDuplicate = existingIndex >= 0;
+
+    // Create new submission entry
+    const newId = generateId();
+    const newSub = {
+        id: newId,
+        platform: detectedPlatform,
+        problemName: detectedName,
+        problemLink: url,
+        submissionLink: '',
+        solutions: [],
+        difficulty: detectedDifficulty || 'Medium',
+        tags: detectedTags,
+        language: 'C++',
+        date: new Date().toISOString().split('T')[0],
+        source: 'manual',
+        verdict: 'OK'
+    };
+
+    submissions.unshift(newSub);
+    newlyAddedSubId = newId;
+
+    // Auto-increment platform solved count
+    const currentSubCount = submissions.filter(s => s.platform === detectedPlatform).length;
+    PLATFORMS[detectedPlatform].solved = Math.max((PLATFORMS[detectedPlatform].solved || 0) + 1, currentSubCount);
+    if (!DEFAULT_PLATFORM_KEYS.includes(detectedPlatform)) {
+        PLATFORMS[detectedPlatform].isCustom = true;
+    }
+
+    // Save and re-render
+    savePlatformCounts();
+    saveCustomPlatforms();
+    saveToStorage();
+
+    // Reset pagination to first page so user sees new entry
+    currentPage = 1;
+    renderStatsBar();
+    renderPlatformCards();
+    applyFilters();
+    syncStatsToServer(); // Auto-pushes immediately to /api/stats for Portfolio!
+
+    // Calculate total solved
+    let totalSolved = 0;
+    for (const [k, p] of Object.entries(PLATFORMS)) {
+        if (k === 'cptracker') continue;
+        const subCount = submissions.filter(s => s.platform === k).length;
+        totalSolved += Math.max(subCount, p.solved || 0);
+    }
+
+    const platName = PLATFORMS[detectedPlatform]?.name || detectedPlatform;
+    const celebrationMsg = isDuplicate
+        ? `✓ Marked as solved! <strong>${escHtml(detectedName)}</strong> updated (+1 ${escHtml(platName)}, Total Solved: <strong>${totalSolved}</strong>)`
+        : `🎉 Marked as solved! <strong>${escHtml(detectedName)}</strong> added to ${escHtml(platName)} (+1, Total Solved: <strong>${totalSolved}</strong>)`;
+
+    showQuickStatus(celebrationMsg, 'success');
+    toast(`✓ Solved: "${detectedName}" marked solved on ${platName}! (+1)`, 'success');
+
+    // Reset input & controls
+    input.value = '';
+    input.disabled = false;
+    const clearBtn = document.getElementById('quick-clear-btn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    if (btn) {
+        btn.disabled = false;
+        const btnText = btn.querySelector('.btn-text');
+        if (btnText) btnText.textContent = '⚡ Mark Solved';
+        if (spinner) spinner.style.display = 'none';
+    }
+
+    // Update preview with final resolved details
+    updateQuickPreview({
+        platform: detectedPlatform,
+        problemName: detectedName,
+        difficulty: detectedDifficulty,
+        tags: detectedTags
+    });
+
+    // Fade out preview & success status after 7 seconds
+    setTimeout(() => {
+        if (previewEl && input.value === '') previewEl.style.display = 'none';
+        if (statusEl && statusEl.classList.contains('success')) statusEl.style.display = 'none';
+    }, 7000);
+
+    // Remove row highlight after 4 seconds
+    setTimeout(() => {
+        newlyAddedSubId = null;
+        const trs = document.querySelectorAll('tr.row-new-highlight');
+        trs.forEach(tr => tr.classList.remove('row-new-highlight'));
+    }, 4000);
+}
+
 // ─── Event Bindings ─────────────────────────────────────────
 function bindEvents() {
     document.getElementById('btn-sync').addEventListener('click', syncAll);
@@ -411,12 +775,86 @@ function bindEvents() {
     });
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
 
-    // Problem Link Autofetch
+    // Problem Link Autofetch in modal
     const formLinkInput = document.getElementById('form-link');
     if (formLinkInput) {
         formLinkInput.addEventListener('input', debounce(handleLinkAutofetch, 250));
         formLinkInput.addEventListener('paste', () => setTimeout(handleLinkAutofetch, 50));
         formLinkInput.addEventListener('change', handleLinkAutofetch);
+    }
+
+    // One-Click Quick Solve Bar
+    const quickInput = document.getElementById('quick-solve-input');
+    const quickBtn = document.getElementById('btn-quick-solve');
+    const quickClearBtn = document.getElementById('quick-clear-btn');
+    const quickPasteBtn = document.getElementById('quick-paste-btn');
+
+    if (quickBtn) {
+        quickBtn.addEventListener('click', executeQuickSolve);
+    }
+    if (quickInput) {
+        quickInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                executeQuickSolve();
+            }
+        });
+        quickInput.addEventListener('input', () => {
+            const val = quickInput.value.trim();
+            if (quickClearBtn) quickClearBtn.style.display = val ? 'flex' : 'none';
+            if (val) {
+                const info = detectPlatformAndNameFromUrl(val);
+                updateQuickPreview(info);
+            } else {
+                updateQuickPreview(null);
+                const status = document.getElementById('quick-solve-status');
+                if (status) status.style.display = 'none';
+            }
+        });
+        quickInput.addEventListener('paste', () => {
+            setTimeout(() => {
+                const val = quickInput.value.trim();
+                if (quickClearBtn) quickClearBtn.style.display = val ? 'flex' : 'none';
+                if (val) {
+                    const info = detectPlatformAndNameFromUrl(val);
+                    updateQuickPreview(info);
+                }
+            }, 30);
+        });
+    }
+    if (quickClearBtn) {
+        quickClearBtn.addEventListener('click', () => {
+            quickInput.value = '';
+            quickClearBtn.style.display = 'none';
+            updateQuickPreview(null);
+            const status = document.getElementById('quick-solve-status');
+            if (status) status.style.display = 'none';
+            quickInput.focus();
+        });
+    }
+    if (quickPasteBtn) {
+        quickPasteBtn.addEventListener('click', async () => {
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    const text = await navigator.clipboard.readText();
+                    if (text && text.trim()) {
+                        quickInput.value = text.trim();
+                        if (quickClearBtn) quickClearBtn.style.display = 'flex';
+                        const info = detectPlatformAndNameFromUrl(text.trim());
+                        updateQuickPreview(info);
+                        // True 1-click: paste and solve immediately!
+                        executeQuickSolve();
+                    } else {
+                        toast('Clipboard is empty. Please copy a problem link first!', 'error');
+                    }
+                } else {
+                    quickInput.focus();
+                    toast('Please paste your link with Ctrl+V / Cmd+V', 'info');
+                }
+            } catch (err) {
+                quickInput.focus();
+            }
+        });
     }
 
     // Platform Management & Portfolio Connection
@@ -855,7 +1293,8 @@ function renderTable() {
             solutionsHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap;">${parts.join('')}</div>`;
         }
 
-        return `<tr>
+        const isNew = s.id === newlyAddedSubId;
+        return `<tr${isNew ? ' class="row-new-highlight"' : ''}>
             <td style="color:var(--text-muted);font-family:var(--font-code);font-size:0.78rem;">${start + i + 1}</td>
             <td><div class="cell-platform" style="--platform-color:${p.color}"><span class="cell-platform-dot"></span>${p.name}</div></td>
             <td class="cell-problem">

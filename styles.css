@@ -60,7 +60,7 @@ body {
 }
 
 /* ========== LAYOUT ========== */
-header, .stats-bar, .platforms-grid, .controls, .table-container, footer {
+header, .stats-bar, .platforms-grid, .quick-solve-section, .controls, .table-container, footer {
     position: relative; z-index:1;
     max-width: 1400px;
     margin: 0 auto;
@@ -591,4 +591,257 @@ footer a:hover { text-decoration: underline; }
     white-space: pre-wrap;
     max-height: 250px;
     overflow-y: auto;
+}
+
+/* ========== ONE-CLICK QUICK SOLVE BAR ========== */
+.quick-solve-section {
+    margin-bottom: 24px;
+}
+.quick-solve-card {
+    background: linear-gradient(135deg, rgba(20, 20, 32, 0.9) 0%, rgba(13, 13, 22, 0.98) 100%);
+    border: 1px solid rgba(0, 212, 170, 0.28);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(0, 212, 170, 0.08);
+    border-radius: var(--radius);
+    padding: 18px 24px;
+    backdrop-filter: blur(12px);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.quick-solve-card:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 28px rgba(0, 212, 170, 0.18);
+}
+.quick-solve-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.quick-solve-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.quick-solve-icon {
+    font-size: 1.15rem;
+    color: var(--accent);
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+.quick-solve-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: quickPulse 2s infinite;
+}
+@keyframes quickPulse {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    50% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.7; }
+}
+.quick-solve-desc {
+    font-size: 0.82rem;
+    color: var(--text-sub);
+}
+.quick-solve-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.quick-solve-input-group {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+.quick-input-icon {
+    position: absolute;
+    left: 14px;
+    color: var(--text-muted);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+.quick-solve-input-group:focus-within .quick-input-icon {
+    color: var(--accent);
+}
+.quick-solve-input {
+    width: 100%;
+    padding: 13px 92px 13px 44px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    outline: none;
+    transition: all 0.2s ease;
+}
+.quick-solve-input:focus {
+    border-color: var(--accent);
+    background: #11111a;
+}
+.quick-solve-input::placeholder {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+.quick-clear-btn {
+    position: absolute;
+    right: 88px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+.quick-clear-btn:hover {
+    color: var(--text);
+}
+.quick-paste-btn {
+    position: absolute;
+    right: 8px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    color: var(--text-sub);
+}
+.quick-paste-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent-glow);
+    background: var(--accent-dim);
+}
+.btn-quick-submit {
+    height: 48px;
+    padding: 0 24px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    box-shadow: 0 4px 16px rgba(0, 212, 170, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-quick-submit:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 22px rgba(0, 212, 170, 0.35);
+}
+.btn-quick-submit:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+}
+.spin-svg {
+    animation: rotateSpin 1s linear infinite;
+}
+@keyframes rotateSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.quick-solve-preview {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: rgba(0, 212, 170, 0.06);
+    border: 1px solid rgba(0, 212, 170, 0.18);
+    border-radius: var(--radius-sm);
+    font-size: 0.84rem;
+    flex-wrap: wrap;
+}
+.quick-preview-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: var(--font-code);
+    font-size: 0.76rem;
+    font-weight: 600;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+.quick-preview-name {
+    font-weight: 600;
+    color: var(--text);
+}
+.quick-preview-diff {
+    font-family: var(--font-code);
+    font-size: 0.74rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.quick-preview-tags {
+    display: inline-flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.quick-solve-status {
+    margin-top: 10px;
+    padding: 9px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.86rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: fadeIn 0.3s ease;
+}
+.quick-solve-status.success {
+    background: rgba(0, 212, 170, 0.12);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+.quick-solve-status.error {
+    background: rgba(255, 71, 87, 0.12);
+    border: 1px solid var(--red);
+    color: var(--red);
+}
+.quick-solve-status.info {
+    background: rgba(30, 144, 255, 0.12);
+    border: 1px solid var(--blue);
+    color: #8ec5fc;
+}
+
+/* Table row highlight pulse animation for newly added question */
+@keyframes rowPulseGlow {
+    0% { background-color: rgba(0, 212, 170, 0.35); }
+    40% { background-color: rgba(0, 212, 170, 0.18); }
+    100% { background-color: transparent; }
+}
+tr.row-new-highlight {
+    animation: rowPulseGlow 3s ease-out forwards;
+}
+
+@media (max-width: 768px) {
+    .quick-solve-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .btn-quick-submit {
+        width: 100%;
+        justify-content: center;
+    }
+    .quick-solve-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
