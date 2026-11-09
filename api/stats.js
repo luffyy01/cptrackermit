@@ -3,12 +3,9 @@
  * Exports unified platform statistics and solved counts for portfolio integration.
  */
 
-// In-memory cache for serverless invocation reuse
 let cachedData = null;
-let lastCacheTime = 0;
-const CACHE_TTL = 60 * 1000; // 60 seconds cache
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -28,7 +25,6 @@ export default async function handler(req, res) {
                     ...body,
                     updatedAt: new Date().toISOString()
                 };
-                lastCacheTime = Date.now();
                 return res.status(200).json({ success: true, message: 'Stats synced successfully', data: cachedData });
             }
         } catch (e) {
@@ -38,9 +34,8 @@ export default async function handler(req, res) {
 
     // Handle GET
     const handle = req.query?.handle || 'luffyy01';
-    const now = Date.now();
 
-    // Default baseline platform data
+    // Baseline platform data
     const platforms = {
         codeforces: {
             name: 'Codeforces',
@@ -143,7 +138,7 @@ export default async function handler(req, res) {
         }
     }
 
-    // Try to auto-fetch live Codeforces stats
+    // Try to auto-fetch live Codeforces rating if possible
     try {
         const cfRes = await fetch(`https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`);
         const cfData = await cfRes.json();
@@ -154,7 +149,7 @@ export default async function handler(req, res) {
         }
     } catch (e) {}
 
-    // Calculate total solved
+    // Calculate total solved (excluding CP Tracker itself)
     let totalSolved = 0;
     for (const p of Object.values(platforms)) {
         if (p.name !== 'CP Tracker' && typeof p.solved === 'number') {
@@ -170,4 +165,4 @@ export default async function handler(req, res) {
         source: 'cptrackermit.vercel.app',
         updatedAt: new Date().toISOString()
     });
-}
+};

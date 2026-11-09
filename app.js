@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyFilters();
     bindEvents();
     updateLastSynced();
+    syncWithPortfolio();
 });
 
 // ─── Storage ────────────────────────────────────────────────
@@ -94,6 +95,41 @@ function saveToStorage() {
     syncStatsToServer();
 }
 
+async function syncWithPortfolio() {
+    try {
+        const res = await fetch('https://mitjain.vercel.app/site-config.json?v=' + Date.now());
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.cp && data.cp.platforms) {
+                let added = false;
+                for (const [key, p] of Object.entries(data.cp.platforms)) {
+                    if (key === 'cptracker') continue;
+                    if (!PLATFORMS[key]) {
+                        PLATFORMS[key] = {
+                            name: p.name || key,
+                            handle: p.handle || '',
+                            color: '#8b5cf6',
+                            icon: '🌐',
+                            apiSupport: false,
+                            url: p.url || '',
+                            rating: p.rating || 0,
+                            maxRating: p.maxRating || 0
+                        };
+                        added = true;
+                    }
+                }
+                if (added) {
+                    renderPlatformCards();
+                    populateFilterDropdown();
+                    populateFormPlatform();
+                }
+            }
+        }
+    } catch (e) {
+        console.log('Portfolio config sync note:', e);
+    }
+}
+
 async function syncStatsToServer() {
     try {
         const counts = {};
@@ -102,8 +138,8 @@ async function syncStatsToServer() {
             counts[key] = {
                 name: p.name,
                 solved: count,
-                url: p.profileUrl(p.handle),
-                handle: p.handle
+                url: (typeof p.profileUrl === 'function' ? p.profileUrl(p.handle) : p.url) || '',
+                handle: p.handle || ''
             };
         }
         await fetch('/api/stats', {

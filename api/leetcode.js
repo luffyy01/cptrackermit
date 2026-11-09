@@ -1,9 +1,9 @@
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
     const { handle } = req.query;
     if (!handle) return res.status(400).json({ error: 'Handle required' });
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
     try {
         const query = `{
@@ -58,4 +58,4 @@ export default async function handler(req, res) {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
-}
+};

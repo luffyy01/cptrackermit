@@ -1,9 +1,9 @@
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
     const { handle } = req.query;
     if (!handle) return res.status(400).json({ error: 'Handle required' });
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
     try {
         const response = await fetch(`https://www.codechef.com/users/${encodeURIComponent(handle)}`, {
@@ -39,16 +39,17 @@ export default async function handler(req, res) {
                 const contest = h5Match ? h5Match[1].trim() : 'Contest';
                 const spans = block.match(/<span style="font-size: 12px"[^>]*>([\s\S]*?)<\/span>/g) || [];
 
-                for (const sp of spans) {
-                    const name = sp.replace(/<[^>]+>/g, '').trim();
-                    if (name) {
-                        const slug = name.replace(/\s+/g, '_');
-                        problems.push({
-                            problemName: name,
-                            contest: contest,
-                            problemLink: `https://www.codechef.com/problems/${encodeURIComponent(slug)}`,
-                            searchLink: `https://www.codechef.com/practice?search=${encodeURIComponent(name)}`
-                        });
+                for (const span of spans) {
+                    const textMatch = span.match(/>([^<]+)</);
+                    if (textMatch) {
+                        const name = textMatch[1].trim();
+                        if (name) {
+                            problems.push({
+                                name,
+                                contest,
+                                link: `https://www.codechef.com/problems/${encodeURIComponent(name.replace(/\s+/g, '_'))}`
+                            });
+                        }
                     }
                 }
             }
@@ -64,4 +65,4 @@ export default async function handler(req, res) {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
-}
+};
