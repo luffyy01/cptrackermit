@@ -10,50 +10,50 @@ const PLATFORMS = {
     codeforces: {
         name: 'Codeforces', handle: 'luffyy01', color: '#1890ff', icon: '⚡',
         apiSupport: true, url: 'https://codeforces.com/profile/luffyy01',
-        rating: 1227, maxRating: 1467
+        rating: 1227, maxRating: 1467, solved: 1081
     },
     leetcode: {
         name: 'LeetCode', handle: 'luffyy01', color: '#ffa116', icon: '🔥',
         apiSupport: true, url: 'https://leetcode.com/u/luffyy01/',
-        rating: 0, maxRating: 1720
+        rating: 0, maxRating: 1720, solved: 84
     },
     atcoder: {
         name: 'AtCoder', handle: 'luffyy01', color: '#2196f3', icon: '🏯',
         apiSupport: true, url: 'https://atcoder.jp/users/luffyy01',
-        rating: 53, maxRating: 820
+        rating: 53, maxRating: 820, solved: 14
     },
     codechef: {
         name: 'CodeChef', handle: 'luffyy01', color: '#5b4638', icon: '👨‍🍳',
         apiSupport: true, url: 'https://www.codechef.com/users/luffyy01',
-        rating: 1120, maxRating: 1346
+        rating: 1120, maxRating: 1346, solved: 31
     },
     gfg: {
         name: 'GeeksforGeeks', handle: 'luffyy01', color: '#2f8d46', icon: '🟢',
-        apiSupport: false, url: 'https://www.geeksforgeeks.org/profile/luffyy01'
+        apiSupport: false, url: 'https://www.geeksforgeeks.org/profile/luffyy01', solved: 3
     },
     cses: {
         name: 'CSES', handle: 'mit_001', color: '#607d8b', icon: '📘',
-        apiSupport: false, url: 'https://cses.fi/user/mit_001'
+        apiSupport: false, url: 'https://cses.fi/user/mit_001', solved: 35
     },
     vjudge: {
         name: 'VJudge', handle: 'luffyy01', color: '#5cb85c', icon: '⚖️',
-        apiSupport: false, url: 'https://vjudge.net/user/luffyy01'
+        apiSupport: false, url: 'https://vjudge.net/user/luffyy01', solved: 32
     },
     spoj: {
         name: 'SPOJ', handle: 'luffyy01', color: '#0066aa', icon: '🔵',
-        apiSupport: false, url: 'https://www.spoj.com/myaccount/'
+        apiSupport: false, url: 'https://www.spoj.com/myaccount/', solved: 2
     },
     euler: {
         name: 'Project Euler', handle: 'luffyy01', color: '#666', icon: '🔢',
-        apiSupport: false, url: 'https://projecteuler.net/'
+        apiSupport: false, url: 'https://projecteuler.net/', solved: 3
     },
     usaco: {
         name: 'USACO Guide', handle: 'luffyy01', color: '#0066cc', icon: '🐄',
-        apiSupport: false, url: 'https://usaco.guide/problems?status=Solved'
+        apiSupport: false, url: 'https://usaco.guide/problems?status=Solved', solved: 6
     },
     kattis: {
         name: 'Kattis', handle: 'mit-jain', color: '#333', icon: '🐱',
-        apiSupport: false, url: 'https://open.kattis.com/users/mit-jain'
+        apiSupport: false, url: 'https://open.kattis.com/users/mit-jain', solved: 0
     }
 };
 
@@ -134,7 +134,8 @@ async function syncStatsToServer() {
     try {
         const counts = {};
         for (const [key, p] of Object.entries(PLATFORMS)) {
-            const count = submissions.filter(s => s.platform === key).length;
+            const subCount = submissions.filter(s => s.platform === key).length;
+            const count = Math.max(subCount, p.solved || 0);
             counts[key] = {
                 name: p.name,
                 solved: count,
@@ -214,10 +215,15 @@ function bindEvents() {
 // ─── Stats Bar ──────────────────────────────────────────────
 function renderStatsBar() {
     const bar = document.getElementById('stats-bar');
-    const totalSolved = submissions.length;
+    let platformSum = 0;
+    for (const [key, p] of Object.entries(PLATFORMS)) {
+        const subCount = submissions.filter(s => s.platform === key).length;
+        platformSum += Math.max(subCount, p.solved || 0);
+    }
+    const totalSolved = Math.max(submissions.length, platformSum);
     const autoCount = submissions.filter(s => s.source === 'auto').length;
     const manualCount = submissions.filter(s => s.source === 'manual').length;
-    const platformCount = new Set(submissions.map(s => s.platform)).size;
+    const platformCount = new Set([...submissions.map(s => s.platform), ...Object.keys(PLATFORMS)]).size;
     const uniqueTags = new Set(submissions.flatMap(s => s.tags || []));
 
     bar.innerHTML = `
@@ -250,7 +256,8 @@ function renderPlatformCards() {
     grid.innerHTML = '';
 
     for (const [key, p] of Object.entries(PLATFORMS)) {
-        const count = submissions.filter(s => s.platform === key).length;
+        const subCount = submissions.filter(s => s.platform === key).length;
+        const count = Math.max(subCount, p.solved || 0);
         const card = document.createElement('div');
         card.className = `platform-card${activePlatformFilter === key ? ' active' : ''}`;
         card.style.setProperty('--platform-color', p.color);
@@ -775,9 +782,34 @@ function mergeSubmissions(newSubs) {
 // ─── Codeforces API ─────────────────────────────────────────
 async function fetchCodeforces() {
     const handle = PLATFORMS.codeforces.handle;
-    const url = `https://codeforces.com/api/user.status?handle=${handle}`;
-    const res = await fetch(url);
-    const data = await res.json();
+
+    // User's Codeforces API credentials for accessing all private group & mashup submissions
+    const apiKey = "802d01e31c9c9a038bdacc79fe8097f195cb425e";
+    const apiSecret = "6b89fd9e78fc3636236ca7e5a4d16b7b1b5292b1";
+
+    let data = null;
+    try {
+        const time = Math.floor(Date.now() / 1000);
+        const rand = Math.random().toString(36).substring(2, 8).padStart(6, '0');
+        const params = `apiKey=${apiKey}&handle=${handle}&time=${time}`;
+        const base = `${rand}/user.status?${params}#${apiSecret}`;
+
+        const msgBuffer = new TextEncoder().encode(base);
+        const hashBuffer = await crypto.subtle.digest('SHA-512', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const apiSig = `${rand}${hashHex}`;
+
+        const res = await fetch(`https://codeforces.com/api/user.status?${params}&apiSig=${apiSig}`);
+        data = await res.json();
+    } catch (e) {
+        console.warn('Authenticated CF fetch error, falling back to public:', e);
+    }
+
+    if (!data || data.status !== 'OK') {
+        const fallbackRes = await fetch(`https://codeforces.com/api/user.status?handle=${handle}`);
+        data = await fallbackRes.json();
+    }
 
     if (data.status !== 'OK') throw new Error(data.comment || 'API Error');
 
@@ -787,20 +819,25 @@ async function fetchCodeforces() {
     for (const sub of data.result) {
         if (sub.verdict !== 'OK') continue;
         const prob = sub.problem;
-        const key = `${prob.contestId}-${prob.index}`;
+        // Key by problem name to ensure unique problems across contests & group mashups
+        const key = prob.name ? prob.name.trim().toLowerCase() : `${prob.contestId}-${prob.index}`;
         if (seen.has(key)) continue;
         seen.add(key);
 
-        const probLink = prob.contestId >= 100000
-            ? `https://codeforces.com/problemset/problem/${prob.contestId}/${prob.index}`
+        const isGroupOrGym = prob.contestId >= 100000;
+        const probLink = isGroupOrGym
+            ? `https://codeforces.com/gym/${prob.contestId}/problem/${prob.index}`
             : `https://codeforces.com/contest/${prob.contestId}/problem/${prob.index}`;
+        const subLink = isGroupOrGym
+            ? `https://codeforces.com/gym/${prob.contestId}/submission/${sub.id}`
+            : `https://codeforces.com/contest/${prob.contestId}/submission/${sub.id}`;
 
         subs.push({
             id: generateId(),
             platform: 'codeforces',
             problemName: `${prob.index}. ${prob.name}`,
             problemLink: probLink,
-            submissionLink: `https://codeforces.com/contest/${prob.contestId}/submission/${sub.id}`,
+            submissionLink: subLink,
             difficulty: prob.rating ? String(prob.rating) : '',
             tags: prob.tags || [],
             language: sub.programmingLanguage || '',
@@ -809,6 +846,7 @@ async function fetchCodeforces() {
         });
     }
 
+    PLATFORMS.codeforces.solved = subs.length;
     return subs;
 }
 
@@ -821,16 +859,20 @@ async function fetchLeetcode() {
 
     if (data.error) throw new Error(data.error);
 
+    if (data.totalSolved) {
+        PLATFORMS.leetcode.solved = data.totalSolved;
+    }
+
     const submissionsList = data.submissions || [];
     return submissionsList.map(s => ({
         id: generateId(),
         platform: 'leetcode',
-        problemName: s.title,
+        problemName: s.questionId ? `${s.questionId}. ${s.title}` : s.title,
         problemLink: `https://leetcode.com/problems/${s.titleSlug}/`,
         submissionLink: `https://leetcode.com/problems/${s.titleSlug}/`,
-        difficulty: '',
-        tags: [],
-        language: '',
+        difficulty: s.difficulty || '',
+        tags: s.tags || [],
+        language: s.lang || 'C++',
         date: s.timestamp ? new Date(parseInt(s.timestamp) * 1000).toISOString() : new Date().toISOString(),
         source: 'auto'
     }));
@@ -876,16 +918,20 @@ async function fetchCodechef() {
 
     if (!data.problems) throw new Error(data.error || 'Failed to fetch CodeChef data');
 
+    if (data.totalSolved) {
+        PLATFORMS.codechef.solved = data.totalSolved;
+    }
+
     return data.problems.map(p => ({
         id: generateId(),
         platform: 'codechef',
-        problemName: p.problemName,
-        problemLink: p.problemLink,
-        submissionLink: p.searchLink,
-        difficulty: p.contest || '',
+        problemName: p.problemName || p.name,
+        problemLink: p.problemLink || p.link,
+        submissionLink: p.submissionLink || p.searchLink || (p.link ? `${p.link}` : ''),
+        difficulty: p.difficulty || p.contest || '',
         tags: [p.contest].filter(Boolean),
-        language: 'C++',
-        date: new Date().toISOString(),
+        language: p.language || 'C++',
+        date: p.date || new Date().toISOString(),
         source: 'auto'
     }));
 }
