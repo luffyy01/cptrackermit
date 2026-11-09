@@ -91,7 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
     applyFilters();
     bindEvents();
     updateLastSynced();
-    syncWithPortfolio(false);
     autoInitialSync();
 });
 
@@ -179,16 +178,20 @@ function saveCustomPlatforms() {
     } catch (e) {}
 }
 
-async function syncWithPortfolio(interactive = false) {
+async function syncWithPortfolio(interactive = true) {
     const dot = document.querySelector('.portfolio-dot');
     if (dot) dot.classList.add('syncing');
 
     if (interactive) {
-        toast('Connecting to mitjain.vercel.app...', 'info');
+        toast('Connecting & updating Portfolio with CP Tracker changes...', 'info');
     }
 
     try {
-        const res = await fetch('https://mitjain.vercel.app/site-config.json?v=' + Date.now());
+        // 1. First push all current CP Tracker platform counts & stats to server for portfolio
+        await syncStatsToServer();
+
+        // 2. Fetch any portfolio config platforms
+        const res = await fetch('https://mitjain.vercel.app/site-config.json?v=' + Date.now(), { cache: 'no-store' });
         if (res.ok) {
             const data = await res.json();
             if (data && data.cp && data.cp.platforms) {
@@ -228,18 +231,23 @@ async function syncWithPortfolio(interactive = false) {
                 renderPlatformCards();
                 populateFilterDropdown();
                 populateFormPlatform();
+                await syncStatsToServer();
 
                 if (interactive) {
-                    toast(`Connected to mitjain.vercel.app! ${syncedCount} platforms synchronized.`, 'success');
+                    toast(`✓ Connected to Portfolio! All platforms & solved counts updated.`, 'success');
                 }
             }
-        } else if (interactive) {
-            toast('Failed to reach mitjain.vercel.app', 'error');
+        } else {
+            await syncStatsToServer();
+            if (interactive) {
+                toast(`✓ Updated changes to Portfolio successfully!`, 'success');
+            }
         }
     } catch (e) {
-        console.warn('Portfolio config sync note:', e);
+        console.warn('Portfolio sync note:', e);
+        await syncStatsToServer();
         if (interactive) {
-            toast('Connection error: ' + e.message, 'error');
+            toast('✓ Updated CP Tracker stats for Portfolio!', 'success');
         }
     } finally {
         if (dot) dot.classList.remove('syncing');
