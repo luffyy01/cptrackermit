@@ -2,6 +2,7 @@
  * CP Tracker API - Problem Information Autofetch Endpoint
  * Extracts problem title, platform, difficulty, and tags from any problem URL.
  */
+const crypto = require('crypto');
 
 function slugToTitle(slug) {
     if (!slug) return '';
@@ -97,15 +98,20 @@ module.exports = async (req, res) => {
     // 2. Codeforces
     if (host.includes('codeforces.com')) {
         result.platform = 'codeforces';
-        // /contest/2040/problem/B or /problemset/problem/2040/B or /gym/100000/problem/A
-        const match = pathname.match(/\/(?:contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9]+)/);
+        // /group/nqUiki1EgM/contest/661565/problem/A or /contest/2040/problem/B or /gym/100000/problem/A
+        const match = pathname.match(/(?:group\/([^\/]+)\/contest|contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9]+)/);
         if (match) {
-            const contestId = match[1];
-            const index = match[2].toUpperCase();
+            const groupId = match[1];
+            const contestId = match[2];
+            const index = match[3].toUpperCase();
             result.problemName = `${index}. Problem ${contestId}${index}`;
+            if (groupId) {
+                result.groupId = groupId;
+                result.tags.push('Private Group');
+            }
 
             try {
-                // Try to find problem name in Codeforces public problemset
+                // First try to find in Codeforces public problemset
                 const cfRes = await fetch('https://codeforces.com/api/problemset.problems');
                 const cfData = await cfRes.json();
                 if (cfData.status === 'OK' && cfData.result && Array.isArray(cfData.result.problems)) {
@@ -115,12 +121,39 @@ module.exports = async (req, res) => {
                     if (prob) {
                         result.problemName = `${prob.index}. ${prob.name}`;
                         if (prob.rating) result.difficulty = String(prob.rating);
-                        if (Array.isArray(prob.tags)) result.tags = prob.tags;
+                        if (Array.isArray(prob.tags)) result.tags = [...result.tags, ...prob.tags];
                         return res.status(200).json(result);
                     }
                 }
             } catch (e) {
                 console.warn('Codeforces problemset lookup error:', e.message);
+            }
+
+            // If not found in public problemset (e.g. private group contest or gym mashup), look in user status
+            try {
+                const apiKey = "802d01e31c9c9a038bdacc79fe8097f195cb425e";
+                const apiSecret = "6b89fd9e78fc3636236ca7e5a4d16b7b1b5292b1";
+                const time = Math.floor(Date.now() / 1000);
+                const rand = Math.random().toString(36).substring(2, 8).padStart(6, '0');
+                const params = `apiKey=${apiKey}&handle=luffyy01&time=${time}`;
+                const base = `${rand}/user.status?${params}#${apiSecret}`;
+                const hash = crypto.createHash('sha512').update(base).digest('hex');
+                const apiSig = `${rand}${hash}`;
+                const statusRes = await fetch(`https://codeforces.com/api/user.status?${params}&apiSig=${apiSig}`);
+                const statusData = await statusRes.json();
+                if (statusData.status === 'OK' && Array.isArray(statusData.result)) {
+                    const sub = statusData.result.find(
+                        s => String(s.problem?.contestId) === contestId && s.problem?.index?.toUpperCase() === index
+                    );
+                    if (sub && sub.problem) {
+                        result.problemName = `${sub.problem.index}. ${sub.problem.name || ('Problem ' + contestId + index)}`;
+                        if (sub.problem.rating) result.difficulty = String(sub.problem.rating);
+                        if (Array.isArray(sub.problem.tags)) result.tags = [...result.tags, ...sub.problem.tags];
+                        return res.status(200).json(result);
+                    }
+                }
+            } catch (e) {
+                console.warn('Codeforces private group lookup error:', e.message);
             }
         }
     }

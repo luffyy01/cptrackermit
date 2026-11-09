@@ -10,7 +10,7 @@ const PLATFORMS = {
     codeforces: {
         name: 'Codeforces', handle: 'luffyy01', color: '#1890ff', icon: '⚡',
         apiSupport: true, url: 'https://codeforces.com/profile/luffyy01',
-        rating: 1227, maxRating: 1467, solved: 1081
+        rating: 1478, maxRating: 1478, solved: 1490
     },
     leetcode: {
         name: 'LeetCode', handle: 'luffyy01', color: '#ffa116', icon: '🔥',
@@ -237,14 +237,15 @@ async function syncStatsToServer() {
 }
 
 async function autoInitialSync() {
-    if (submissions.length > 0) return;
+    const cfSubs = submissions.filter(s => s.platform === 'codeforces');
+    if (cfSubs.length >= 1400) return;
     try {
         const cfRes = await fetch(`/api/codeforces?handle=${encodeURIComponent(PLATFORMS.codeforces.handle)}`);
         if (cfRes.ok) {
             const cfData = await cfRes.json();
             if (cfData && Array.isArray(cfData.submissions) && cfData.submissions.length > 0) {
                 mergeSubmissions(cfData.submissions);
-                if (cfData.uniqueSolved) PLATFORMS.codeforces.solved = cfData.uniqueSolved;
+                PLATFORMS.codeforces.solved = cfData.acceptedSubmissions || cfData.uniqueSolved || cfData.submissions.length;
                 if (cfData.rating) PLATFORMS.codeforces.rating = cfData.rating;
                 if (cfData.maxRating) PLATFORMS.codeforces.maxRating = cfData.maxRating;
                 saveToStorage();
@@ -1190,10 +1191,12 @@ async function syncAll() {
 function mergeSubmissions(newSubs) {
     for (const ns of newSubs) {
         const exists = submissions.some(s =>
-            s.platform === ns.platform && (
-                (s.problemLink && s.problemLink === ns.problemLink) ||
-                (!s.problemLink && s.problemName === ns.problemName)
-            )
+            (s.id && ns.id && s.id === ns.id) ||
+            (s.platform === ns.platform && (
+                (s.submissionLink && ns.submissionLink && s.submissionLink === ns.submissionLink) ||
+                (s.problemLink && ns.problemLink && s.problemLink === ns.problemLink && (!s.submissionLink || !ns.submissionLink)) ||
+                (!s.problemLink && !ns.problemLink && s.problemName === ns.problemName)
+            ))
         );
         if (!exists) {
             submissions.push(ns);
@@ -1254,36 +1257,49 @@ async function fetchCodeforces() {
 
     if (data.status !== 'OK') throw new Error(data.comment || 'API Error');
 
-    const seen = new Set();
     const subs = [];
+    const defaultGroupId = 'nqUiki1EgM';
 
     for (const sub of data.result) {
         if (sub.verdict !== 'OK') continue;
         const prob = sub.problem;
-        // Key by problem name to ensure unique problems across contests & group mashups
-        const key = prob.name ? prob.name.trim().toLowerCase() : `${prob.contestId}-${prob.index}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
+        if (!prob) continue;
 
-        const isGroupOrGym = prob.contestId >= 100000;
-        const probLink = isGroupOrGym
-            ? `https://codeforces.com/gym/${prob.contestId}/problem/${prob.index}`
-            : `https://codeforces.com/contest/${prob.contestId}/problem/${prob.index}`;
-        const subLink = isGroupOrGym
-            ? `https://codeforces.com/gym/${prob.contestId}/submission/${sub.id}`
-            : `https://codeforces.com/contest/${prob.contestId}/submission/${sub.id}`;
+        const isPrivateGroup = prob.contestId >= 600000;
+        const isGym = prob.contestId >= 100000 && prob.contestId < 600000;
+
+        let probLink = '';
+        let subLink = '';
+
+        if (isPrivateGroup) {
+            probLink = `https://codeforces.com/group/${defaultGroupId}/contest/${prob.contestId}/problem/${prob.index}`;
+            subLink = `https://codeforces.com/group/${defaultGroupId}/contest/${prob.contestId}/submission/${sub.id}`;
+        } else if (isGym) {
+            probLink = `https://codeforces.com/gym/${prob.contestId}/problem/${prob.index}`;
+            subLink = `https://codeforces.com/gym/${prob.contestId}/submission/${sub.id}`;
+        } else {
+            probLink = `https://codeforces.com/contest/${prob.contestId}/problem/${prob.index}`;
+            subLink = `https://codeforces.com/contest/${prob.contestId}/submission/${sub.id}`;
+        }
+
+        const tags = Array.isArray(prob.tags) ? [...prob.tags] : [];
+        if (isPrivateGroup) {
+            tags.push('Private Group');
+        }
 
         subs.push({
-            id: generateId(),
+            id: `cf_${sub.id}`,
             platform: 'codeforces',
-            problemName: `${prob.index}. ${prob.name}`,
+            problemName: `${prob.index}. ${prob.name || prob.index}`,
             problemLink: probLink,
             submissionLink: subLink,
             difficulty: prob.rating ? String(prob.rating) : '',
-            tags: prob.tags || [],
-            language: sub.programmingLanguage || '',
+            tags: tags,
+            language: sub.programmingLanguage || 'C++',
             date: new Date(sub.creationTimeSeconds * 1000).toISOString(),
-            source: 'auto'
+            source: 'auto',
+            isGroup: isPrivateGroup ? 'group' : (isGym ? 'gym' : false),
+            groupId: isPrivateGroup ? defaultGroupId : undefined
         });
     }
 

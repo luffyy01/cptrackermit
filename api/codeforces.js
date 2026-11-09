@@ -73,10 +73,11 @@ module.exports = async (req, res) => {
         }
     } catch (e) {}
 
+    const defaultGroupId = req.query?.groupId || 'nqUiki1EgM';
+
     const totalSubmissions = rawData.result.length;
     const okSubmissions = rawData.result.filter(s => s.verdict === 'OK');
 
-    const seenProbs = new Set();
     const formattedSubmissions = [];
 
     for (const sub of rawData.result) {
@@ -84,18 +85,27 @@ module.exports = async (req, res) => {
         const prob = sub.problem;
         if (!prob) continue;
 
-        // Ensure unique problems across contests & group mashups
-        const nameKey = prob.name ? prob.name.trim().toLowerCase() : `${prob.contestId}-${prob.index}`;
-        if (seenProbs.has(nameKey)) continue;
-        seenProbs.add(nameKey);
+        const isPrivateGroup = prob.contestId >= 600000;
+        const isGym = prob.contestId >= 100000 && prob.contestId < 600000;
 
-        const isGroupOrGym = prob.contestId >= 100000;
-        const probLink = isGroupOrGym
-            ? `https://codeforces.com/gym/${prob.contestId}/problem/${prob.index}`
-            : `https://codeforces.com/contest/${prob.contestId}/problem/${prob.index}`;
-        const subLink = isGroupOrGym
-            ? `https://codeforces.com/gym/${prob.contestId}/submission/${sub.id}`
-            : `https://codeforces.com/contest/${prob.contestId}/submission/${sub.id}`;
+        let probLink = '';
+        let subLink = '';
+
+        if (isPrivateGroup) {
+            probLink = `https://codeforces.com/group/${defaultGroupId}/contest/${prob.contestId}/problem/${prob.index}`;
+            subLink = `https://codeforces.com/group/${defaultGroupId}/contest/${prob.contestId}/submission/${sub.id}`;
+        } else if (isGym) {
+            probLink = `https://codeforces.com/gym/${prob.contestId}/problem/${prob.index}`;
+            subLink = `https://codeforces.com/gym/${prob.contestId}/submission/${sub.id}`;
+        } else {
+            probLink = `https://codeforces.com/contest/${prob.contestId}/problem/${prob.index}`;
+            subLink = `https://codeforces.com/contest/${prob.contestId}/submission/${sub.id}`;
+        }
+
+        const tags = Array.isArray(prob.tags) ? [...prob.tags] : [];
+        if (isPrivateGroup) {
+            tags.push('Private Group');
+        }
 
         formattedSubmissions.push({
             id: `cf_${sub.id}`,
@@ -104,11 +114,12 @@ module.exports = async (req, res) => {
             problemLink: probLink,
             submissionLink: subLink,
             difficulty: prob.rating ? String(prob.rating) : '',
-            tags: prob.tags || [],
+            tags: tags,
             language: sub.programmingLanguage || 'C++',
             date: new Date(sub.creationTimeSeconds * 1000).toISOString(),
             source: 'auto',
-            isGroup: isGroupOrGym
+            isGroup: isPrivateGroup ? 'group' : (isGym ? 'gym' : false),
+            groupId: isPrivateGroup ? defaultGroupId : undefined
         });
     }
 
@@ -119,7 +130,7 @@ module.exports = async (req, res) => {
         maxRating,
         totalSubmissions,
         acceptedSubmissions: okSubmissions.length,
-        uniqueSolved: seenProbs.size,
+        uniqueSolved: okSubmissions.length,
         submissions: formattedSubmissions,
         fetchedAt: new Date().toISOString()
     };

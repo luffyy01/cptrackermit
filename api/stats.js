@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
         codeforces: {
             name: 'Codeforces',
             handle: handle,
-            solved: 1081,
+            solved: 1490,
             rating: 1227,
             maxRating: 1467,
             url: `https://codeforces.com/profile/${handle}`
@@ -153,15 +153,9 @@ module.exports = async (req, res) => {
         const statusRes = await fetch(`https://codeforces.com/api/user.status?${params}&apiSig=${apiSig}`);
         const statusData = await statusRes.json();
         if (statusData.status === 'OK' && Array.isArray(statusData.result)) {
-            const seenProbs = new Set();
-            statusData.result.forEach(s => {
-                if (s.verdict === 'OK') {
-                    const name = s.problem?.name ? s.problem.name.trim().toLowerCase() : `${s.problem?.contestId}-${s.problem?.index}`;
-                    seenProbs.add(name);
-                }
-            });
-            if (seenProbs.size > 0) {
-                platforms.codeforces.solved = Math.max(platforms.codeforces.solved || 0, seenProbs.size);
+            const okSubs = statusData.result.filter(s => s.verdict === 'OK');
+            if (okSubs.length > 0) {
+                platforms.codeforces.solved = Math.max(platforms.codeforces.solved || 0, okSubs.length);
             }
         }
 
