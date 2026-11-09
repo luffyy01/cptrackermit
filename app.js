@@ -88,6 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     updateLastSynced();
     syncWithPortfolio(false);
+    if (submissions.length === 0) {
+        autoInitialSync();
+    }
 });
 
 // ─── Storage ────────────────────────────────────────────────
@@ -205,17 +208,54 @@ async function syncStatsToServer() {
             const count = Math.max(subCount, p.solved || 0);
             counts[key] = {
                 name: p.name,
-                solved: count,
+                solved: key === 'cptracker' ? 0 : count,
                 url: (typeof p.profileUrl === 'function' ? p.profileUrl(p.handle) : p.url) || '',
-                handle: p.handle || ''
+                handle: p.handle || '',
+                rating: p.rating || 0,
+                maxRating: p.maxRating || 0,
+                color: p.color || '',
+                icon: p.icon || '🌐',
+                isCustom: !!p.isCustom
             };
         }
-        await fetch('/api/stats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platforms: counts, lastSynced: new Date().toISOString() })
-        });
+        if (counts.cptracker) {
+            counts.cptracker.solved = 0;
+        }
+
+        const payload = JSON.stringify({ platforms: counts, lastSynced: new Date().toISOString() });
+        const endpoints = ['/api/stats', 'https://cptrackermit.vercel.app/api/stats'];
+        for (const ep of endpoints) {
+            try {
+                await fetch(ep, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: payload
+                });
+            } catch (e) {}
+        }
     } catch (e) {}
+}
+
+async function autoInitialSync() {
+    if (submissions.length > 0) return;
+    try {
+        const cfRes = await fetch(`/api/codeforces?handle=${encodeURIComponent(PLATFORMS.codeforces.handle)}`);
+        if (cfRes.ok) {
+            const cfData = await cfRes.json();
+            if (cfData && Array.isArray(cfData.submissions) && cfData.submissions.length > 0) {
+                mergeSubmissions(cfData.submissions);
+                if (cfData.uniqueSolved) PLATFORMS.codeforces.solved = cfData.uniqueSolved;
+                if (cfData.rating) PLATFORMS.codeforces.rating = cfData.rating;
+                if (cfData.maxRating) PLATFORMS.codeforces.maxRating = cfData.maxRating;
+                saveToStorage();
+                renderPlatformCards();
+                renderStatsBar();
+                applyFilters();
+            }
+        }
+    } catch (e) {
+        console.warn('Initial auto-sync error:', e);
+    }
 }
 
 function saveLastSynced() {
@@ -235,6 +275,116 @@ function updateLastSynced() {
     }
 }
 
+// ─── Problem Link Autofetch ─────────────────────────────────
+let autofetchAbortCtrl = null;
+
+async function handleLinkAutofetch() {
+    const linkInput = document.getElementById('form-link');
+    const nameInput = document.getElementById('form-name');
+    const platSelect = document.getElementById('form-platform');
+    const diffInput = document.getElementById('form-difficulty');
+    const tagsInput = document.getElementById('form-tags');
+    const statusEl = document.getElementById('link-autofetch-status');
+
+    if (!linkInput) return;
+    const url = linkInput.value.trim();
+    if (!url || !url.startsWith('http')) {
+        if (statusEl) statusEl.style.display = 'none';
+        return;
+    }
+
+    // Fast client-side regex parsing for instant UX
+    try {
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        const path = u.pathname;
+
+        if (host.includes('leetcode.com')) {
+            if (platSelect && PLATFORMS.leetcode) platSelect.value = 'leetcode';
+            const m = path.match(/\/problems\/([^\/]+)/);
+            if (m && m[1] && (!nameInput.value || nameInput.dataset.autofilled === 'true')) {
+                const words = m[1].replace(/[-_]+/g, ' ').split(' ').filter(Boolean)
+                    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                nameInput.value = words;
+                nameInput.dataset.autofilled = 'true';
+            }
+        } else if (host.includes('codeforces.com')) {
+            if (platSelect && PLATFORMS.codeforces) platSelect.value = 'codeforces';
+            const m = path.match(/\/(?:contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9]+)/);
+            if (m && (!nameInput.value || nameInput.dataset.autofilled === 'true')) {
+                nameInput.value = `${m[2].toUpperCase()}. Problem ${m[1]}${m[2].toUpperCase()}`;
+                nameInput.dataset.autofilled = 'true';
+            }
+        } else if (host.includes('codechef.com')) {
+            if (platSelect && PLATFORMS.codechef) platSelect.value = 'codechef';
+            const m = path.match(/\/problems\/([^\/\?#]+)/);
+            if (m && (!nameInput.value || nameInput.dataset.autofilled === 'true')) {
+                nameInput.value = m[1];
+                nameInput.dataset.autofilled = 'true';
+            }
+        } else if (host.includes('atcoder.jp')) {
+            if (platSelect && PLATFORMS.atcoder) platSelect.value = 'atcoder';
+        } else if (host.includes('cses.fi')) {
+            if (platSelect && PLATFORMS.cses) platSelect.value = 'cses';
+        } else if (host.includes('geeksforgeeks.org')) {
+            if (platSelect && PLATFORMS.gfg) platSelect.value = 'gfg';
+        }
+    } catch (e) {}
+
+    // Show fetching indicator
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = 'var(--accent)';
+        statusEl.innerHTML = '⚡ Autofetching problem details...';
+    }
+
+    if (autofetchAbortCtrl) {
+        try { autofetchAbortCtrl.abort(); } catch (e) {}
+    }
+    autofetchAbortCtrl = new AbortController();
+
+    try {
+        const res = await fetch(`/api/problem-info?url=${encodeURIComponent(url)}`, {
+            signal: autofetchAbortCtrl.signal
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+                if (data.problemName && nameInput) {
+                    nameInput.value = data.problemName;
+                    nameInput.dataset.autofilled = 'true';
+                }
+                if (data.platform && platSelect && PLATFORMS[data.platform]) {
+                    platSelect.value = data.platform;
+                }
+                if (data.difficulty && diffInput && (!diffInput.value || diffInput.dataset.autofilled === 'true')) {
+                    diffInput.value = data.difficulty;
+                    diffInput.dataset.autofilled = 'true';
+                }
+                if (data.tags && data.tags.length > 0 && tagsInput && (!tagsInput.value || tagsInput.dataset.autofilled === 'true')) {
+                    tagsInput.value = data.tags.join(', ');
+                    tagsInput.dataset.autofilled = 'true';
+                }
+                if (statusEl) {
+                    statusEl.style.color = 'var(--green)';
+                    statusEl.innerHTML = `✓ Autofetched: ${escapeHtml(data.problemName)}`;
+                    setTimeout(() => {
+                        if (statusEl && statusEl.innerHTML.includes('Autofetched')) {
+                            statusEl.style.display = 'none';
+                        }
+                    }, 4000);
+                }
+            }
+        } else {
+            if (statusEl) statusEl.style.display = 'none';
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError' && statusEl) {
+            statusEl.style.display = 'none';
+        }
+    }
+}
+
 // ─── Event Bindings ─────────────────────────────────────────
 function bindEvents() {
     document.getElementById('btn-sync').addEventListener('click', syncAll);
@@ -248,6 +398,14 @@ function bindEvents() {
         if (e.target === e.currentTarget) closeModal();
     });
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
+
+    // Problem Link Autofetch
+    const formLinkInput = document.getElementById('form-link');
+    if (formLinkInput) {
+        formLinkInput.addEventListener('input', debounce(handleLinkAutofetch, 250));
+        formLinkInput.addEventListener('paste', () => setTimeout(handleLinkAutofetch, 50));
+        formLinkInput.addEventListener('change', handleLinkAutofetch);
+    }
 
     // Platform Management & Portfolio Connection
     const btnAddPlat = document.getElementById('btn-add-platform');
@@ -312,10 +470,11 @@ function renderStatsBar() {
     const bar = document.getElementById('stats-bar');
     let platformSum = 0;
     for (const [key, p] of Object.entries(PLATFORMS)) {
+        if (key === 'cptracker') continue;
         const subCount = submissions.filter(s => s.platform === key).length;
         platformSum += Math.max(subCount, p.solved || 0);
     }
-    const totalSolved = Math.max(submissions.length, platformSum);
+    const totalSolved = platformSum;
     const autoCount = submissions.filter(s => s.source === 'auto').length;
     const manualCount = submissions.filter(s => s.source === 'manual').length;
     const platformCount = new Set([...submissions.map(s => s.platform), ...Object.keys(PLATFORMS)]).size;
@@ -712,6 +871,15 @@ function openModal(id = null, defaultPlatform = null) {
     const form = document.getElementById('submission-form');
     clearSolutionFields();
 
+    const nameInput = document.getElementById('form-name');
+    if (nameInput) delete nameInput.dataset.autofilled;
+    const diffInput = document.getElementById('form-difficulty');
+    if (diffInput) delete diffInput.dataset.autofilled;
+    const tagsInput = document.getElementById('form-tags');
+    if (tagsInput) delete tagsInput.dataset.autofilled;
+    const statusEl = document.getElementById('link-autofetch-status');
+    if (statusEl) statusEl.style.display = 'none';
+
     if (id) {
         editingId = id;
         title.textContent = 'Edit Submission';
@@ -751,6 +919,11 @@ function openModal(id = null, defaultPlatform = null) {
 
 function closeModal() {
     document.getElementById('modal-overlay').classList.remove('open');
+    if (autofetchAbortCtrl) {
+        try { autofetchAbortCtrl.abort(); } catch (e) {}
+    }
+    const statusEl = document.getElementById('link-autofetch-status');
+    if (statusEl) statusEl.style.display = 'none';
     editingId = null;
 }
 
@@ -818,19 +991,40 @@ function handleFormSubmit(e) {
     if (editingId) {
         const idx = submissions.findIndex(s => s.id === editingId);
         if (idx >= 0) {
+            const oldPlatform = submissions[idx].platform;
             submissions[idx] = { ...submissions[idx], ...data };
+            if (oldPlatform !== data.platform && PLATFORMS[data.platform]) {
+                const subCount = submissions.filter(s => s.platform === data.platform).length;
+                PLATFORMS[data.platform].solved = Math.max((PLATFORMS[data.platform].solved || 0) + 1, subCount);
+                if (!PLATFORMS[data.platform].isCustom && !DEFAULT_PLATFORM_KEYS.includes(data.platform)) {
+                    PLATFORMS[data.platform].isCustom = true;
+                }
+            }
             toast('Submission updated', 'success');
         }
     } else {
         data.id = generateId();
         submissions.unshift(data);
-        toast('Submission added', 'success');
+
+        // Auto-increment the solved count for this platform and update total count!
+        const pKey = data.platform;
+        if (PLATFORMS[pKey]) {
+            const currentSubCount = submissions.filter(s => s.platform === pKey).length;
+            PLATFORMS[pKey].solved = Math.max((PLATFORMS[pKey].solved || 0) + 1, currentSubCount);
+            if (!PLATFORMS[pKey].isCustom && !DEFAULT_PLATFORM_KEYS.includes(pKey)) {
+                PLATFORMS[pKey].isCustom = true;
+            }
+        }
+        toast(`Submission added! ${PLATFORMS[pKey]?.name || pKey} count auto-incremented (+1).`, 'success');
     }
 
+    saveCustomPlatforms();
     saveToStorage();
     closeModal();
+    renderStatsBar();
     renderPlatformCards();
     applyFilters();
+    syncStatsToServer(); // Auto-pushes immediately to /api/stats for Portfolio!
 }
 
 // ─── Solutions Viewer Modal ─────────────────────────────────
@@ -883,10 +1077,20 @@ window.editSubmission = function(id) { openModal(id); };
 
 window.deleteSubmission = function(id) {
     if (!confirm('Delete this submission?')) return;
+    const sub = submissions.find(s => s.id === id);
     submissions = submissions.filter(s => s.id !== id);
+    if (sub && PLATFORMS[sub.platform] && PLATFORMS[sub.platform].isCustom) {
+        const currentCount = submissions.filter(s => s.platform === sub.platform).length;
+        if (PLATFORMS[sub.platform].solved > currentCount) {
+            PLATFORMS[sub.platform].solved = Math.max(0, PLATFORMS[sub.platform].solved - 1);
+            saveCustomPlatforms();
+        }
+    }
     saveToStorage();
+    renderStatsBar();
     renderPlatformCards();
     applyFilters();
+    syncStatsToServer();
     toast('Submission deleted', 'info');
 };
 
@@ -971,6 +1175,7 @@ async function syncAll() {
     saveToStorage();
     saveLastSynced();
     hideLoading();
+    renderStatsBar();
     renderPlatformCards();
     applyFilters();
 
@@ -1000,7 +1205,26 @@ function mergeSubmissions(newSubs) {
 async function fetchCodeforces() {
     const handle = PLATFORMS.codeforces.handle;
 
-    // User's Codeforces API credentials for accessing all private group & mashup submissions
+    // First try our dedicated serverless API (signed with API key/secret, handles NTP clock & all private groups)
+    try {
+        const serverRes = await fetch(`/api/codeforces?handle=${encodeURIComponent(handle)}`);
+        if (serverRes.ok) {
+            const serverData = await serverRes.json();
+            if (serverData.success && Array.isArray(serverData.submissions)) {
+                if (serverData.rating) PLATFORMS.codeforces.rating = serverData.rating;
+                if (serverData.maxRating) PLATFORMS.codeforces.maxRating = serverData.maxRating;
+                PLATFORMS.codeforces.solved = Math.max(serverData.uniqueSolved || 0, serverData.submissions.length, PLATFORMS.codeforces.solved || 0);
+                return serverData.submissions.map(s => ({
+                    ...s,
+                    id: s.id || generateId()
+                }));
+            }
+        }
+    } catch (e) {
+        console.warn('Serverless CF fetch note:', e.message);
+    }
+
+    // Direct browser fallback with user credentials
     const apiKey = "802d01e31c9c9a038bdacc79fe8097f195cb425e";
     const apiSecret = "6b89fd9e78fc3636236ca7e5a4d16b7b1b5292b1";
 
@@ -1063,7 +1287,7 @@ async function fetchCodeforces() {
         });
     }
 
-    PLATFORMS.codeforces.solved = subs.length;
+    PLATFORMS.codeforces.solved = Math.max(subs.length, PLATFORMS.codeforces.solved || 0);
     return subs;
 }
 
@@ -1077,7 +1301,7 @@ async function fetchLeetcode() {
     if (data.error) throw new Error(data.error);
 
     if (data.totalSolved) {
-        PLATFORMS.leetcode.solved = data.totalSolved;
+        PLATFORMS.leetcode.solved = Math.max(PLATFORMS.leetcode.solved || 0, data.totalSolved);
     }
 
     const submissionsList = data.submissions || [];
@@ -1136,7 +1360,7 @@ async function fetchCodechef() {
     if (!data.problems) throw new Error(data.error || 'Failed to fetch CodeChef data');
 
     if (data.totalSolved) {
-        PLATFORMS.codechef.solved = data.totalSolved;
+        PLATFORMS.codechef.solved = Math.max(PLATFORMS.codechef.solved || 0, data.totalSolved);
     }
 
     return data.problems.map(p => ({

@@ -5,6 +5,8 @@ const leetcodeHandler = require('./api/leetcode.js');
 const cfLookupHandler = require('./api/cf-lookup.js');
 const codechefHandler = require('./api/codechef.js');
 const statsHandler = require('./api/stats.js');
+const codeforcesHandler = require('./api/codeforces.js');
+const problemInfoHandler = require('./api/problem-info.js');
 
 const PORT = process.env.PORT || 3000;
 
@@ -66,6 +68,30 @@ const server = http.createServer(async (req, res) => {
         const query = Object.fromEntries(parsedUrl.searchParams.entries());
         try {
             await codechefHandler({ ...req, query }, createMockRes());
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // Handle /api/codeforces
+    if (pathname === '/api/codeforces') {
+        const query = Object.fromEntries(parsedUrl.searchParams.entries());
+        try {
+            await codeforcesHandler({ ...req, query }, createMockRes());
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
+
+    // Handle /api/problem-info
+    if (pathname === '/api/problem-info') {
+        const query = Object.fromEntries(parsedUrl.searchParams.entries());
+        try {
+            await problemInfoHandler({ ...req, query }, createMockRes());
         } catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));

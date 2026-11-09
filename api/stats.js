@@ -161,7 +161,7 @@ module.exports = async (req, res) => {
                 }
             });
             if (seenProbs.size > 0) {
-                platforms.codeforces.solved = seenProbs.size;
+                platforms.codeforces.solved = Math.max(platforms.codeforces.solved || 0, seenProbs.size);
             }
         }
 
