@@ -489,14 +489,35 @@ function loadFromStorage() {
 
     // Ensure cptracker is never in platforms
     delete PLATFORMS.cptracker;
+    addDeletedPlatform('cptracker');
+    submissions = submissions.filter(s => s.platform !== 'cptracker');
     try {
         const customData = localStorage.getItem(LS_CUSTOM_PLATFORMS);
         if (customData) {
             const custom = JSON.parse(customData);
-            if (custom.cptracker) {
-                delete custom.cptracker;
-                localStorage.setItem(LS_CUSTOM_PLATFORMS, JSON.stringify(custom));
+            let mod = false;
+            for (const k of Object.keys(custom)) {
+                if (k === 'cptracker' || (custom[k].name && custom[k].name.toLowerCase() === 'cp tracker')) {
+                    delete custom[k];
+                    mod = true;
+                }
             }
+            if (mod) localStorage.setItem(LS_CUSTOM_PLATFORMS, JSON.stringify(custom));
+        }
+    } catch (e) {}
+
+    try {
+        const ovData = localStorage.getItem(LS_PLATFORM_OVERRIDES);
+        if (ovData) {
+            const ovs = JSON.parse(ovData);
+            let mod = false;
+            for (const k of Object.keys(ovs)) {
+                if (k === 'cptracker') {
+                    delete ovs[k];
+                    mod = true;
+                }
+            }
+            if (mod) localStorage.setItem(LS_PLATFORM_OVERRIDES, JSON.stringify(ovs));
         }
     } catch (e) {}
 
@@ -504,6 +525,11 @@ function loadFromStorage() {
     const deletedPlatforms = getDeletedPlatforms();
     for (const delKey of deletedPlatforms) {
         delete PLATFORMS[delKey];
+    }
+    for (const k of Object.keys(PLATFORMS)) {
+        if (k === 'cptracker' || (PLATFORMS[k].name && PLATFORMS[k].name.toLowerCase() === 'cp tracker')) {
+            delete PLATFORMS[k];
+        }
     }
     if (deletedPlatforms.length > 0) {
         submissions = submissions.filter(s => !deletedPlatforms.includes(s.platform));
@@ -573,6 +599,7 @@ function saveCustomPlatforms() {
     try {
         const custom = {};
         for (const [key, p] of Object.entries(PLATFORMS)) {
+            if (key === 'cptracker' || (p.name && p.name.toLowerCase() === 'cp tracker')) continue;
             if (p.isCustom || p.fromPortfolio || !DEFAULT_PLATFORM_KEYS.includes(key)) {
                 custom[key] = p;
             }
@@ -690,6 +717,7 @@ async function syncStatsToServer() {
     try {
         const counts = {};
         for (const [key, p] of Object.entries(PLATFORMS)) {
+            if (key === 'cptracker' || (p.name && p.name.toLowerCase() === 'cp tracker')) continue;
             const subCount = submissions.filter(s => s.platform === key).length;
             const floor = BASELINE_SOLVED[key] || 0;
             const count = Math.max(subCount, p.solved || 0, floor);
@@ -1658,6 +1686,7 @@ function renderPlatformCards() {
     grid.innerHTML = '';
 
     for (const [key, p] of Object.entries(PLATFORMS)) {
+        if (key === 'cptracker' || (p.name && p.name.toLowerCase() === 'cp tracker')) continue;
         const subCount = submissions.filter(s => s.platform === key).length;
         const count = Math.max(subCount, p.solved || 0);
         const card = document.createElement('div');
@@ -1887,6 +1916,7 @@ function populateFilterDropdown() {
     const sel = document.getElementById('filter-platform');
     sel.innerHTML = '<option value="all">All Platforms</option>';
     for (const [key, p] of Object.entries(PLATFORMS)) {
+        if (key === 'cptracker' || (p.name && p.name.toLowerCase() === 'cp tracker')) continue;
         sel.innerHTML += `<option value="${key}">${p.icon} ${p.name}</option>`;
     }
 }
@@ -1895,6 +1925,7 @@ function populateFormPlatform() {
     const sel = document.getElementById('form-platform');
     sel.innerHTML = '';
     for (const [key, p] of Object.entries(PLATFORMS)) {
+        if (key === 'cptracker' || (p.name && p.name.toLowerCase() === 'cp tracker')) continue;
         sel.innerHTML += `<option value="${key}">${p.icon} ${p.name}</option>`;
     }
 }

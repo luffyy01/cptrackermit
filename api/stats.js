@@ -356,7 +356,14 @@ module.exports = async (req, res) => {
         console.error('CF live sync note in stats:', e);
     }
 
-    delete platforms.cptracker;
+    for (const k of Object.keys(platforms)) {
+        if (k === 'cptracker' || (platforms[k].name && platforms[k].name.toLowerCase() === 'cp tracker')) {
+            delete platforms[k];
+        }
+    }
+
+    const delList = (activeCache && Array.isArray(activeCache.deletedPlatforms)) ? [...activeCache.deletedPlatforms] : [];
+    if (!delList.includes('cptracker')) delList.push('cptracker');
 
     // Calculate total solved
     let totalSolved = 0;
@@ -371,7 +378,7 @@ module.exports = async (req, res) => {
         handle,
         totalSolved,
         platforms,
-        deletedPlatforms: (activeCache && Array.isArray(activeCache.deletedPlatforms)) ? activeCache.deletedPlatforms : [],
+        deletedPlatforms: delList,
         source: 'cptrackermit.vercel.app',
         updatedAt: new Date().toISOString()
     });
