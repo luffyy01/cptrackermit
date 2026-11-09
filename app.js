@@ -69,6 +69,8 @@ let activePlatformFilter = null; // Platform card click filter
 const LS_SUBMISSIONS = 'cp_tracker_submissions';
 const LS_LAST_SYNCED = 'cp_tracker_last_synced';
 const LS_CUSTOM_PLATFORMS = 'cp_tracker_custom_platforms';
+const CURRENT_DATA_VERSION = 'v2_cf_1490';
+const LS_DATA_VERSION = 'cp_tracker_data_version';
 
 const DEFAULT_PLATFORM_KEYS = [
     'codeforces', 'leetcode', 'atcoder', 'codechef', 'gfg',
@@ -88,16 +90,25 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     updateLastSynced();
     syncWithPortfolio(false);
-    if (submissions.length === 0) {
-        autoInitialSync();
-    }
+    autoInitialSync();
 });
 
 // ─── Storage ────────────────────────────────────────────────
 function loadFromStorage() {
     try {
-        const data = localStorage.getItem(LS_SUBMISSIONS);
-        if (data) submissions = JSON.parse(data);
+        const v = localStorage.getItem(LS_DATA_VERSION);
+        if (v !== CURRENT_DATA_VERSION) {
+            const data = localStorage.getItem(LS_SUBMISSIONS);
+            if (data) {
+                const oldSubs = JSON.parse(data);
+                // Keep manual and non-codeforces, clean old incomplete CF submissions
+                submissions = oldSubs.filter(s => s.source === 'manual' || s.platform !== 'codeforces');
+            }
+            localStorage.setItem(LS_DATA_VERSION, CURRENT_DATA_VERSION);
+        } else {
+            const data = localStorage.getItem(LS_SUBMISSIONS);
+            if (data) submissions = JSON.parse(data);
+        }
     } catch (e) { submissions = []; }
 
     // Load any custom or portfolio platforms
@@ -708,6 +719,48 @@ function populateFormPlatform() {
 }
 
 // ─── Filtering & Rendering ──────────────────────────────────
+function levenshtein(a, b) {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+function matchesSearch(text, query) {
+    if (!query) return true;
+    const t = text.toLowerCase();
+    const q = query.toLowerCase().trim();
+    if (t.includes(q)) return true;
+
+    const words = t.split(/[^a-z0-9]+/).filter(Boolean);
+    const qWords = q.split(/[^a-z0-9]+/).filter(Boolean);
+
+    return qWords.every(qw => {
+        if (qw.length <= 2) return t.includes(qw);
+        if (qw.length >= 4) {
+            const prefix = qw.slice(0, 4);
+            if (words.some(w => w.startsWith(prefix))) return true;
+        }
+        return words.some(w => {
+            if (Math.abs(w.length - qw.length) > 2) return false;
+            return levenshtein(w, qw) <= 2;
+        });
+    });
+}
+
 function applyFilters() {
     const search = document.getElementById('search-input').value.toLowerCase().trim();
     const platformFilter = activePlatformFilter || document.getElementById('filter-platform').value;
@@ -723,10 +776,13 @@ function applyFilters() {
                 PLATFORMS[s.platform]?.name || s.platform,
                 s.difficulty,
                 s.language,
+                s.problemLink || '',
+                s.submissionLink || '',
+                s.groupId || '',
                 ...(s.tags || []),
                 ...(s.solutions || []).map(sol => sol.title + ' ' + sol.code)
-            ].join(' ').toLowerCase();
-            if (!haystack.includes(search)) return false;
+            ].join(' ');
+            if (!matchesSearch(haystack, search)) return false;
         }
         return true;
     });
