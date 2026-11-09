@@ -1840,11 +1840,14 @@ window.deleteSubmission = function(id) {
     if (!confirm('Delete this submission?')) return;
     const sub = submissions.find(s => s.id === id);
     submissions = submissions.filter(s => s.id !== id);
-    if (sub && PLATFORMS[sub.platform] && PLATFORMS[sub.platform].isCustom) {
+    if (sub && PLATFORMS[sub.platform]) {
         const currentCount = submissions.filter(s => s.platform === sub.platform).length;
         if (PLATFORMS[sub.platform].solved > currentCount) {
             PLATFORMS[sub.platform].solved = Math.max(0, PLATFORMS[sub.platform].solved - 1);
-            saveCustomPlatforms();
+            savePlatformCounts();
+            if (PLATFORMS[sub.platform].isCustom) {
+                saveCustomPlatforms();
+            }
         }
     }
     saveToStorage();

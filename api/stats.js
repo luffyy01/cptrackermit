@@ -3,14 +3,37 @@
  * Exports unified platform statistics and solved counts for portfolio integration.
  */
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
-let cachedData = null;
+const CACHE_FILE = path.join('/tmp', 'cptracker_stats_cache.json');
+
+function readDiskCache() {
+    try {
+        if (fs.existsSync(CACHE_FILE)) {
+            const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+            return JSON.parse(raw);
+        }
+    } catch (e) {}
+    return null;
+}
+
+function writeDiskCache(data) {
+    try {
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(data));
+    } catch (e) {}
+}
+
+let cachedData = readDiskCache();
 
 module.exports = async (req, res) => {
-    // Enable CORS
+    // Enable CORS and disable HTTP caching so clients always get fresh data immediately
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -21,11 +44,23 @@ module.exports = async (req, res) => {
         try {
             const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
             if (body && (body.platforms || body.submissions)) {
+                const disk = readDiskCache();
+                const prev = disk || cachedData || {};
+                const prevPlatforms = prev.platforms || {};
+                const incomingPlatforms = body.platforms || {};
+
+                const mergedPlatforms = { ...prevPlatforms, ...incomingPlatforms };
+                if (mergedPlatforms.cptracker) {
+                    mergedPlatforms.cptracker.solved = 0;
+                }
+
                 cachedData = {
-                    ...cachedData,
+                    ...prev,
                     ...body,
+                    platforms: mergedPlatforms,
                     updatedAt: new Date().toISOString()
                 };
+                writeDiskCache(cachedData);
                 return res.status(200).json({ success: true, message: 'Stats synced successfully', data: cachedData });
             }
         } catch (e) {
@@ -129,8 +164,10 @@ module.exports = async (req, res) => {
     };
 
     // If client posted custom cached data, merge it
-    if (cachedData && cachedData.platforms) {
-        for (const [k, v] of Object.entries(cachedData.platforms)) {
+    const activeCache = readDiskCache() || cachedData;
+    if (activeCache && activeCache.platforms) {
+        for (const [k, v] of Object.entries(activeCache.platforms)) {
+            if (k === 'cptracker') continue;
             if (platforms[k]) {
                 platforms[k] = { ...platforms[k], ...v };
             } else {
