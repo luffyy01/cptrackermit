@@ -78,7 +78,8 @@ module.exports = async (req, res) => {
     const totalSubmissions = rawData.result.length;
     const okSubmissions = rawData.result.filter(s => s.verdict === 'OK');
 
-    const formattedSubmissions = [];
+    // Deduplicate submissions to keep only UNIQUE questions
+    const seenProblems = new Map();
 
     for (const sub of rawData.result) {
         if (sub.verdict !== 'OK') continue;
@@ -107,7 +108,7 @@ module.exports = async (req, res) => {
             tags.push('Private Group');
         }
 
-        formattedSubmissions.push({
+        const subEntry = {
             id: `cf_${sub.id}`,
             platform: 'codeforces',
             problemName: `${prob.index}. ${prob.name || prob.index}`,
@@ -119,9 +120,27 @@ module.exports = async (req, res) => {
             date: new Date(sub.creationTimeSeconds * 1000).toISOString(),
             source: 'auto',
             isGroup: isPrivateGroup ? 'group' : (isGym ? 'gym' : false),
-            groupId: isPrivateGroup ? defaultGroupId : undefined
-        });
+            groupId: isPrivateGroup ? defaultGroupId : undefined,
+            _contestId: prob.contestId
+        };
+
+        const nameKey = prob.name ? prob.name.trim().toLowerCase() : `${prob.contestId}-${prob.index}`;
+
+        if (!seenProblems.has(nameKey)) {
+            seenProblems.set(nameKey, subEntry);
+        } else {
+            // Prefer public contest over private group for accessibility
+            const prev = seenProblems.get(nameKey);
+            if (prev && prev._contestId >= 600000 && prob.contestId < 600000) {
+                seenProblems.set(nameKey, subEntry);
+            }
+        }
     }
+
+    const formattedSubmissions = Array.from(seenProblems.values()).map(s => {
+        delete s._contestId;
+        return s;
+    });
 
     const result = {
         success: true,
@@ -129,8 +148,9 @@ module.exports = async (req, res) => {
         rating,
         maxRating,
         totalSubmissions,
-        acceptedSubmissions: okSubmissions.length,
-        uniqueSolved: okSubmissions.length,
+        totalAcceptedSubmissions: okSubmissions.length,
+        acceptedSubmissions: formattedSubmissions.length,
+        uniqueSolved: formattedSubmissions.length,
         submissions: formattedSubmissions,
         fetchedAt: new Date().toISOString()
     };

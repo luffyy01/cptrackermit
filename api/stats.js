@@ -9,7 +9,7 @@ const path = require('path');
 const CACHE_FILE = path.join('/tmp', 'cptracker_stats_cache.json');
 
 const BASELINE_SOLVED = {
-    codeforces: 1491,
+    codeforces: 1092,
     leetcode: 84,
     codechef: 31,
     atcoder: 17,
@@ -104,7 +104,7 @@ module.exports = async (req, res) => {
         codeforces: {
             name: 'Codeforces',
             handle: handle,
-            solved: 1491,
+            solved: 1092,
             rating: 1478,
             maxRating: 1478,
             url: `https://codeforces.com/profile/${handle}`,
@@ -340,8 +340,15 @@ module.exports = async (req, res) => {
         const statusData = await statusRes.json();
         if (statusData.status === 'OK' && Array.isArray(statusData.result)) {
             const okSubs = statusData.result.filter(s => s.verdict === 'OK');
-            if (okSubs.length > 0) {
-                platforms.codeforces.solved = Math.max(platforms.codeforces.solved || 0, okSubs.length);
+            const uniqueProbs = new Set();
+            for (const s of okSubs) {
+                if (s.problem) {
+                    const nameKey = s.problem.name ? s.problem.name.trim().toLowerCase() : `${s.problem.contestId}-${s.problem.index}`;
+                    uniqueProbs.add(nameKey);
+                }
+            }
+            if (uniqueProbs.size > 0) {
+                platforms.codeforces.solved = Math.max(platforms.codeforces.solved || 0, uniqueProbs.size, BASELINE_SOLVED.codeforces);
             }
         }
 

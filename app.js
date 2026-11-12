@@ -7,7 +7,7 @@
 
 // ─── Platform Configuration ─────────────────────────────────
 const BASELINE_SOLVED = {
-    codeforces: 1491,
+    codeforces: 1092,
     leetcode: 84,
     codechef: 31,
     atcoder: 17,
@@ -25,7 +25,7 @@ const PLATFORMS = {
     codeforces: {
         name: 'Codeforces', handle: 'luffyy01', color: '#1890ff', icon: '⚡',
         apiSupport: true, url: 'https://codeforces.com/profile/luffyy01',
-        rating: 1478, maxRating: 1478, solved: 1491
+        rating: 1478, maxRating: 1478, solved: 1092
     },
     leetcode: {
         name: 'LeetCode', handle: 'luffyy01', color: '#ffa116', icon: '🔥',
@@ -458,6 +458,32 @@ document.addEventListener('DOMContentLoaded', () => {
     autoInitialSync();
 });
 
+function deduplicateSubmissions(subs) {
+    if (!Array.isArray(subs)) return [];
+    const seen = new Set();
+    const result = [];
+    for (const s of subs) {
+        if (!s) continue;
+        const normName = (s.problemName || '')
+            .toLowerCase()
+            .replace(/^[a-z0-9]+[\.\-\:]\s*/i, '')
+            .replace(/^cses\s*\d+[\:\.\-]\s*/i, '')
+            .trim();
+        const cleanUrl = s.problemLink ? normalizeProblemUrl(s.problemLink) : '';
+
+        const urlKey = cleanUrl ? `${s.platform || ''}_url_${cleanUrl}` : '';
+        const nameKey = (normName.length >= 3) ? `${s.platform || ''}_name_${normName}` : '';
+
+        if (urlKey && seen.has(urlKey)) continue;
+        if (nameKey && seen.has(nameKey)) continue;
+
+        if (urlKey) seen.add(urlKey);
+        if (nameKey) seen.add(nameKey);
+        result.push(s);
+    }
+    return result;
+}
+
 // ─── Storage ────────────────────────────────────────────────
 function loadFromStorage() {
     try {
@@ -475,6 +501,13 @@ function loadFromStorage() {
             if (data) submissions = JSON.parse(data);
         }
     } catch (e) { submissions = []; }
+
+    // Deduplicate submissions immediately to keep only unique questions
+    const prevSubLen = submissions.length;
+    submissions = deduplicateSubmissions(submissions);
+    if (submissions.length !== prevSubLen) {
+        try { localStorage.setItem(LS_SUBMISSIONS, JSON.stringify(submissions)); } catch (e) {}
+    }
 
     // Seed default CSES submissions if not already present
     for (const seeded of CSES_SEEDED_SUBMISSIONS) {
@@ -558,7 +591,11 @@ function loadFromStorage() {
             const overrides = JSON.parse(overridesData);
             for (const [key, ov] of Object.entries(overrides)) {
                 if (PLATFORMS[key] && !deletedPlatforms.includes(key)) {
-                    if (typeof ov.solved === 'number') {
+                    if (key === 'codeforces') {
+                        // Keep codeforces aligned with true unique solved count
+                        const cfSubsCount = submissions.filter(s => s.platform === 'codeforces').length;
+                        PLATFORMS[key].solved = Math.max(cfSubsCount, BASELINE_SOLVED.codeforces);
+                    } else if (typeof ov.solved === 'number') {
                         PLATFORMS[key].solved = Math.max(PLATFORMS[key].solved || 0, ov.solved);
                     }
                     if (ov.rating) PLATFORMS[key].rating = ov.rating;
@@ -755,14 +792,15 @@ async function syncStatsToServer() {
 
 async function autoInitialSync() {
     const cfSubs = submissions.filter(s => s.platform === 'codeforces');
-    if (cfSubs.length >= 1400) return;
+    if (cfSubs.length >= 1050) return;
     try {
         const cfRes = await fetch(`/api/codeforces?handle=${encodeURIComponent(PLATFORMS.codeforces.handle)}`);
         if (cfRes.ok) {
             const cfData = await cfRes.json();
             if (cfData && Array.isArray(cfData.submissions) && cfData.submissions.length > 0) {
                 mergeSubmissions(cfData.submissions);
-                PLATFORMS.codeforces.solved = cfData.acceptedSubmissions || cfData.uniqueSolved || cfData.submissions.length;
+                submissions = deduplicateSubmissions(submissions);
+                PLATFORMS.codeforces.solved = cfData.uniqueSolved || cfData.acceptedSubmissions || cfData.submissions.length;
                 if (cfData.rating) PLATFORMS.codeforces.rating = cfData.rating;
                 if (cfData.maxRating) PLATFORMS.codeforces.maxRating = cfData.maxRating;
                 saveToStorage();
@@ -2472,14 +2510,29 @@ async function syncAll() {
 
 function mergeSubmissions(newSubs) {
     for (const ns of newSubs) {
-        const exists = submissions.some(s =>
-            (s.id && ns.id && s.id === ns.id) ||
-            (s.platform === ns.platform && (
-                (s.submissionLink && ns.submissionLink && s.submissionLink === ns.submissionLink) ||
-                (s.problemLink && ns.problemLink && s.problemLink === ns.problemLink && (!s.submissionLink || !ns.submissionLink)) ||
-                (!s.problemLink && !ns.problemLink && s.problemName === ns.problemName)
-            ))
-        );
+        const nsNormName = (ns.problemName || '')
+            .toLowerCase()
+            .replace(/^[a-z0-9]+[\.\-\:]\s*/i, '')
+            .replace(/^cses\s*\d+[\:\.\-]\s*/i, '')
+            .trim();
+        const nsCleanUrl = ns.problemLink ? normalizeProblemUrl(ns.problemLink) : '';
+
+        const exists = submissions.some(s => {
+            if (s.id && ns.id && s.id === ns.id) return true;
+            if (s.platform !== ns.platform) return false;
+
+            if (nsCleanUrl && s.problemLink && normalizeProblemUrl(s.problemLink) === nsCleanUrl) return true;
+
+            const sNormName = (s.problemName || '')
+                .toLowerCase()
+                .replace(/^[a-z0-9]+[\.\-\:]\s*/i, '')
+                .replace(/^cses\s*\d+[\:\.\-]\s*/i, '')
+                .trim();
+            if (nsNormName.length >= 3 && sNormName === nsNormName) return true;
+
+            return false;
+        });
+
         if (!exists) {
             submissions.push(ns);
         }
@@ -2539,7 +2592,7 @@ async function fetchCodeforces() {
 
     if (data.status !== 'OK') throw new Error(data.comment || 'API Error');
 
-    const subs = [];
+    const seenProblems = new Map();
     const defaultGroupId = 'nqUiki1EgM';
 
     for (const sub of data.result) {
@@ -2569,7 +2622,7 @@ async function fetchCodeforces() {
             tags.push('Private Group');
         }
 
-        subs.push({
+        const subEntry = {
             id: `cf_${sub.id}`,
             platform: 'codeforces',
             problemName: `${prob.index}. ${prob.name || prob.index}`,
@@ -2581,11 +2634,27 @@ async function fetchCodeforces() {
             date: new Date(sub.creationTimeSeconds * 1000).toISOString(),
             source: 'auto',
             isGroup: isPrivateGroup ? 'group' : (isGym ? 'gym' : false),
-            groupId: isPrivateGroup ? defaultGroupId : undefined
-        });
+            groupId: isPrivateGroup ? defaultGroupId : undefined,
+            _contestId: prob.contestId
+        };
+
+        const nameKey = prob.name ? prob.name.trim().toLowerCase() : `${prob.contestId}-${prob.index}`;
+        if (!seenProblems.has(nameKey)) {
+            seenProblems.set(nameKey, subEntry);
+        } else {
+            const prev = seenProblems.get(nameKey);
+            if (prev && prev._contestId >= 600000 && prob.contestId < 600000) {
+                seenProblems.set(nameKey, subEntry);
+            }
+        }
     }
 
-    PLATFORMS.codeforces.solved = Math.max(subs.length, PLATFORMS.codeforces.solved || 0);
+    const subs = Array.from(seenProblems.values()).map(s => {
+        delete s._contestId;
+        return s;
+    });
+
+    PLATFORMS.codeforces.solved = subs.length;
     return subs;
 }
 
